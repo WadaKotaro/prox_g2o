@@ -1,45 +1,50 @@
-From 793b51a5e7ebeb1e5fb490c0498c0819a90ed3e0 Mon Sep 17 00:00:00 2001
+From a31710b4f10883c1cb50f7f75c4a40fdeebdad13 Mon Sep 17 00:00:00 2001
 From: Wada Kotaro <Wada_Kotaro@stu.kobe-u.ac.jp>
 Date: Thu, 20 Oct 2022 11:16:40 +0900
-Subject: [PATCH] ;
+Subject: [PATCH] Pose-graph optimization using proximity-point pair matching
+ extended to g2o/types/slam2d .
 
 ---
+ g2o/EXTERNAL/freeglut/CMakeLists.txt         |   2 +-
  g2o/core/CMakeLists.txt                      |  49 +--
  g2o/core/base_ternary_edge.h                 |  31 ++
+ g2o/core/sparse_optimizer.cpp                |  18 +-
+ g2o/solvers/eigen/CMakeLists.txt             |   2 +-
  g2o/stuff/opengl_primitives.cpp              |   8 +
  g2o/stuff/opengl_primitives.h                |   5 +
- g2o/types/slam2d/CMakeLists.txt              |  40 ++-
- g2o/types/slam2d/edge_em_prox.cpp            | 311 +++++++++++++++++++
- g2o/types/slam2d/edge_em_prox.h              |  98 ++++++
+ g2o/types/slam2d/CMakeLists.txt              |  41 ++-
+ g2o/types/slam2d/cache_prox.cpp              |  39 +++
+ g2o/types/slam2d/cache_prox.h                |  42 +++
+ g2o/types/slam2d/edge_em_prox.cpp            | 161 ++++++++++
+ g2o/types/slam2d/edge_em_prox.h              |  96 ++++++
  g2o/types/slam2d/edge_em_se2.cpp             | 220 +++++++++++++
  g2o/types/slam2d/edge_em_se2.h               | 126 ++++++++
- g2o/types/slam2d/edge_prox.cpp               | 287 +++++++++++++++++
- g2o/types/slam2d/edge_prox.h                 | 112 +++++++
+ g2o/types/slam2d/edge_prox.cpp               | 248 +++++++++++++++
+ g2o/types/slam2d/edge_prox.h                 | 117 +++++++
+ g2o/types/slam2d/edge_se2.cpp                |  24 +-
  g2o/types/slam2d/edge_se2.h                  |   3 +
- g2o/types/slam2d/edge_switch_prox.cpp        | 311 +++++++++++++++++++
- g2o/types/slam2d/edge_switch_prox.h          |  98 ++++++
- g2o/types/slam2d/edge_switch_se2.cpp         | 222 +++++++++++++
- g2o/types/slam2d/edge_switch_se2.h           | 127 ++++++++
+ g2o/types/slam2d/edge_switch_prox.cpp        | 199 ++++++++++++
+ g2o/types/slam2d/edge_switch_prox.h          | 104 +++++++
+ g2o/types/slam2d/edge_switch_se2.cpp         | 228 ++++++++++++++
+ g2o/types/slam2d/edge_switch_se2.h           | 136 ++++++++
  g2o/types/slam2d/parameter_em.cpp            |  63 ++++
  g2o/types/slam2d/parameter_em.h              |  58 ++++
  g2o/types/slam2d/parameter_em_prox.cpp       | 311 +++++++++++++++++++
  g2o/types/slam2d/parameter_em_prox.h         |  86 +++++
- g2o/types/slam2d/parameter_prox.cpp          |  92 ++++++
- g2o/types/slam2d/parameter_prox.h            |  67 ++++
  g2o/types/slam2d/parameter_switch_weight.cpp |  53 ++++
  g2o/types/slam2d/parameter_switch_weight.h   |  59 ++++
  g2o/types/slam2d/se2.h                       | 104 ++++---
- g2o/types/slam2d/types_slam2d.cpp            |  11 +
- g2o/types/slam2d/types_slam2d.h              |   6 +
- g2o/types/slam2d/vertex_prox.cpp             | 160 ++++++++++
- g2o/types/slam2d/vertex_prox.h               | 100 ++++++
+ g2o/types/slam2d/types_slam2d.cpp            |  17 +
+ g2o/types/slam2d/types_slam2d.h              |   8 +
+ g2o/types/slam2d/vertex_prox.cpp             | 163 ++++++++++
+ g2o/types/slam2d/vertex_prox.h               |  91 ++++++
  g2o/types/slam2d/vertex_se2.h                |   9 +-
  g2o/types/slam2d/vertex_switch.cpp           |  33 ++
  g2o/types/slam2d/vertex_switch.h             |  60 ++++
- g2o/types/slam2d/vertex_switch_pp.cpp        |  54 ++++
- g2o/types/slam2d/vertex_switch_pp.h          |  67 ++++
- 34 files changed, 3349 insertions(+), 92 deletions(-)
+ 36 files changed, 2900 insertions(+), 114 deletions(-)
  create mode 100644 g2o/core/base_ternary_edge.h
+ create mode 100644 g2o/types/slam2d/cache_prox.cpp
+ create mode 100644 g2o/types/slam2d/cache_prox.h
  create mode 100644 g2o/types/slam2d/edge_em_prox.cpp
  create mode 100644 g2o/types/slam2d/edge_em_prox.h
  create mode 100644 g2o/types/slam2d/edge_em_se2.cpp
@@ -54,17 +59,26 @@ Subject: [PATCH] ;
  create mode 100644 g2o/types/slam2d/parameter_em.h
  create mode 100644 g2o/types/slam2d/parameter_em_prox.cpp
  create mode 100644 g2o/types/slam2d/parameter_em_prox.h
- create mode 100644 g2o/types/slam2d/parameter_prox.cpp
- create mode 100644 g2o/types/slam2d/parameter_prox.h
  create mode 100644 g2o/types/slam2d/parameter_switch_weight.cpp
  create mode 100644 g2o/types/slam2d/parameter_switch_weight.h
  create mode 100644 g2o/types/slam2d/vertex_prox.cpp
  create mode 100644 g2o/types/slam2d/vertex_prox.h
  create mode 100644 g2o/types/slam2d/vertex_switch.cpp
  create mode 100644 g2o/types/slam2d/vertex_switch.h
- create mode 100644 g2o/types/slam2d/vertex_switch_pp.cpp
- create mode 100644 g2o/types/slam2d/vertex_switch_pp.h
 
+diff --git a/g2o/EXTERNAL/freeglut/CMakeLists.txt b/g2o/EXTERNAL/freeglut/CMakeLists.txt
+index 75c7a9d9..f831bf76 100644
+--- a/g2o/EXTERNAL/freeglut/CMakeLists.txt
++++ b/g2o/EXTERNAL/freeglut/CMakeLists.txt
+@@ -7,7 +7,7 @@ add_library(freeglut_minimal ${G2O_LIB_TYPE}
+ target_link_libraries(freeglut_minimal PUBLIC ${G2O_OPENGL_TARGET})
+ target_include_directories(freeglut_minimal PUBLIC
+   "$<BUILD_INTERFACE:${g2o_SOURCE_DIR};${PROJECT_BINARY_DIR}>"
+-  $<INSTALL_INTERFACE:include/g2o/freeglut_minimal>
++  $<INSTALL_INTERFACE:include/g2o/EXTERNAL/freeglut>
+ )
+ 
+ set_target_properties(freeglut_minimal PROPERTIES OUTPUT_NAME ${LIB_PREFIX}ext_freeglut_minimal)
 diff --git a/g2o/core/CMakeLists.txt b/g2o/core/CMakeLists.txt
 index 4ac05b18..92d6fcaf 100644
 --- a/g2o/core/CMakeLists.txt
@@ -173,6 +187,80 @@ index 00000000..eb7b613f
 +}  // namespace g2o
 +
 +#endif
+diff --git a/g2o/core/sparse_optimizer.cpp b/g2o/core/sparse_optimizer.cpp
+index e55f929b..4fddd9c8 100644
+--- a/g2o/core/sparse_optimizer.cpp
++++ b/g2o/core/sparse_optimizer.cpp
+@@ -50,7 +50,7 @@ SparseOptimizer::SparseOptimizer()
+     : _forceStopFlag(0),
+       _verbose(false),
+       _algorithm(nullptr),
+-      _computeBatchStatistics(false) {
++      _computeBatchStatistics(false){
+   _graphActions.resize(AT_NUM_ELEMENTS);
+ }
+ 
+@@ -390,6 +390,7 @@ void SparseOptimizer::computeInitialGuess(
+ }
+ 
+ int SparseOptimizer::optimize(int iterations, bool online) {
++    int itr = (iterations == 0 ? INT_MAX : iterations);
+   if (_ivMap.size() == 0) {
+     cerr << __PRETTY_FUNCTION__
+          << ": 0 vertices to optimize, maybe forgot to call "
+@@ -409,13 +410,15 @@ int SparseOptimizer::optimize(int iterations, bool online) {
+   }
+ 
+   _batchStatistics.clear();
+-  if (_computeBatchStatistics) _batchStatistics.resize(iterations);
++  if (_computeBatchStatistics && iterations) _batchStatistics.resize(iterations);
++
++  number_t chi2 = DBL_MAX;
+ 
+   OptimizationAlgorithm::SolverResult result = OptimizationAlgorithm::OK;
+-  for (int i = 0; i < iterations && !terminate() && ok; i++) {
++  for (int i = 0; i < itr && !terminate() && ok; i++) {
+     preIteration(i);
+ 
+-    if (_computeBatchStatistics) {
++    if (_computeBatchStatistics && iterations) {
+       G2OBatchStatistics& cstat = _batchStatistics[i];
+       G2OBatchStatistics::setGlobalStats(&cstat);
+       cstat.iteration = i;
+@@ -428,7 +431,7 @@ int SparseOptimizer::optimize(int iterations, bool online) {
+     ok = (result == OptimizationAlgorithm::OK);
+ 
+     bool errorComputed = false;
+-    if (_computeBatchStatistics) {
++    if (_computeBatchStatistics && iterations) {
+       computeActiveErrors();
+       errorComputed = true;
+       _batchStatistics[i].chi2 = activeRobustChi2();
+@@ -447,6 +450,11 @@ int SparseOptimizer::optimize(int iterations, bool online) {
+     }
+     ++cjIterations;
+     postIteration(i);
++
++    number_t _chi2 = activeRobustChi2();
++    if (!iterations && fabs(chi2 - _chi2) < 1.e-6)
++        break;
++    chi2 = _chi2;
+   }
+   if (result == OptimizationAlgorithm::Fail) {
+     return 0;
+diff --git a/g2o/solvers/eigen/CMakeLists.txt b/g2o/solvers/eigen/CMakeLists.txt
+index 3f4da300..6b723ce5 100644
+--- a/g2o/solvers/eigen/CMakeLists.txt
++++ b/g2o/solvers/eigen/CMakeLists.txt
+@@ -10,7 +10,7 @@ target_link_libraries(solver_eigen core)
+ 
+ target_include_directories(solver_eigen PUBLIC
+   "$<BUILD_INTERFACE:${g2o_SOURCE_DIR};${PROJECT_BINARY_DIR}>"
+-  $<INSTALL_INTERFACE:include/g2o/solver_eigen>
++  $<INSTALL_INTERFACE:include/g2o/solvers/eigen>
+ )
+ 
+ install(TARGETS solver_eigen
 diff --git a/g2o/stuff/opengl_primitives.cpp b/g2o/stuff/opengl_primitives.cpp
 index 33be81e5..5bd69cfe 100644
 --- a/g2o/stuff/opengl_primitives.cpp
@@ -208,10 +296,10 @@ index f3aade98..00b123ea 100644
  
  #define POSE_VERTEX_COLOR 0.5f, 0.5f, 0.8f
 diff --git a/g2o/types/slam2d/CMakeLists.txt b/g2o/types/slam2d/CMakeLists.txt
-index a565f5fd..25dfc81e 100644
+index a565f5fd..e1bc7a38 100644
 --- a/g2o/types/slam2d/CMakeLists.txt
 +++ b/g2o/types/slam2d/CMakeLists.txt
-@@ -1,19 +1,33 @@
+@@ -1,19 +1,32 @@
  add_library(types_slam2d ${G2O_LIB_TYPE}
 +  types_slam2d.cpp			types_slam2d.h
    se2.h
@@ -227,7 +315,10 @@ index a565f5fd..25dfc81e 100644
 -  edge_se2_xyprior.cpp edge_se2_xyprior.h
 -  edge_pointxy.cpp             edge_pointxy.h
 -  edge_se2_twopointsxy.cpp	edge_se2_twopointsxy.h
-+  edge_se2.cpp				edge_se2.h
+-  edge_se2_lotsofxy.cpp		edge_se2_lotsofxy.h
+-  edge_xy_prior.cpp		edge_xy_prior.h
++  cache_prox.cpp				cache_prox.h		#added by wada
++  edge_se2.cpp					edge_se2.h
 +  edge_se2_pointxy_bearing.cpp	edge_se2_pointxy_bearing.h
 +  edge_se2_pointxy_calib.cpp	edge_se2_pointxy_calib.h
 +  edge_se2_pointxy.cpp			edge_se2_pointxy.h
@@ -237,36 +328,33 @@ index a565f5fd..25dfc81e 100644
 +  edge_se2_xyprior.cpp			edge_se2_xyprior.h
 +  edge_pointxy.cpp				edge_pointxy.h
 +  edge_se2_twopointsxy.cpp		edge_se2_twopointsxy.h
-   edge_se2_lotsofxy.cpp		edge_se2_lotsofxy.h
--  edge_xy_prior.cpp		edge_xy_prior.h
-+  edge_xy_prior.cpp			edge_xy_prior.h
-+  edge_prox.cpp				edge_prox.h				#added by wada
-+  edge_switch_se2.cpp		edge_switch_se2.h		#added by wada
-+  edge_switch_prox.cpp		edge_switch_prox.h		#added by wada
-+#  edge_em_se2.cpp			edge_em_se2.h			#added by wada
-+#  edge_em_prox.cpp			edge_em_prox.h			#added by wada
-+  vertex_se2.cpp			vertex_se2.h
-+  vertex_point_xy.cpp		vertex_point_xy.h
-+  vertex_switch.cpp			vertex_switch.h			#added by wada
-+  vertex_prox.cpp			vertex_prox.h			#added by wada
-+  vertex_switch_pp.cpp		vertex_switch_pp.h		#added by wada
++  edge_se2_lotsofxy.cpp			edge_se2_lotsofxy.h
++  edge_xy_prior.cpp				edge_xy_prior.h
++  edge_prox.cpp					edge_prox.h				#added by wada
++  edge_switch_se2.cpp			edge_switch_se2.h		#added by wada
++  edge_switch_prox.cpp			edge_switch_prox.h		#added by wada
++#  edge_em_se2.cpp				edge_em_se2.h			#added by wada
++  edge_em_prox.cpp				edge_em_prox.h			#added by wada
++  vertex_se2.cpp				vertex_se2.h
++  vertex_point_xy.cpp			vertex_point_xy.h
++  vertex_switch.cpp				vertex_switch.h			#added by wada
++  vertex_prox.cpp				vertex_prox.h			#added by wada
 +  parameter_se2_offset.cpp		parameter_se2_offset.h
-+  parameter_prox.cpp		parameter_prox.h		#added by wada
 +  parameter_switch_weight.cpp	parameter_switch_weight.h	#added by wada
-+#  parameter_em_se2.cpp		parameter_em_se2.h		#added by wada
++#  parameter_em_se2.cpp			parameter_em_se2.h		#added by wada
 +#  parameter_em_prox.cpp		parameter_em_prox.h		#added by wada
    g2o_types_slam2d_api.h
  )
  
-diff --git a/g2o/types/slam2d/edge_em_prox.cpp b/g2o/types/slam2d/edge_em_prox.cpp
+diff --git a/g2o/types/slam2d/cache_prox.cpp b/g2o/types/slam2d/cache_prox.cpp
 new file mode 100644
-index 00000000..77791749
+index 00000000..8c08b02e
 --- /dev/null
-+++ b/g2o/types/slam2d/edge_em_prox.cpp
-@@ -0,0 +1,311 @@
-+// This class was made by Kotaro Wada. (211t373t[at]stu.kobe-u.ac.jp)
++++ b/g2o/types/slam2d/cache_prox.cpp
+@@ -0,0 +1,39 @@
++// This library was made by Kotaro Wada. (211t373t[at]stu.kobe-u.ac.jp)
 +
-+#include "edge_switch_prox.h"
++#include "cache_prox.h"
 +#include <iostream>
 +
 +#ifdef G2O_HAVE_OPENGL
@@ -275,406 +363,347 @@ index 00000000..77791749
 +#endif
 +
 +namespace g2o {
-+  using namespace std;
 +
++CacheProximity::CacheProximity() : Cache(){}
 +
-+  // point to camera projection, monocular
-+  EdgeSwitchProx::EdgeSwitchProx()
-+      : BaseTernaryEdge < 3 * prox_maxN, std::array<int, 2 * prox_maxN>, VertexProx, VertexProx, VertexSwitchProxPair >(), _num_prox_pairs(0), _prox_pairs(), info(1.) {
-+      memset(_prox_pairs[0], 0, prox_maxN);
-+      memset(_prox_pairs[1], 0, prox_maxN);
-+    information().setZero();
-+    _ProxPairWeightInfo = 0;
-+    resizeParameters(1);
-+    installParameter(_ProxPairWeightInfo, 0);
-+  }
-+
-+  bool EdgeSwitchProx::read(std::istream& is) {
-+    // measured keypoint
-+    setMeasurementData(0);
-+    if (is.bad()) return false;
-+    //readInformationMatrix(is);
-+    //  we overwrite the information matrix in case of read errors
-+    //if (is.bad()) information().setIdentity();
-+    information().setZero();
-+    _num_prox_pairs = 0;
-+    if (!setParameterId(0, 0))
-+        return false;
-+    resolveParameters();
-+    info = _ProxPairWeightInfo->Info();
-+    for(int i = 0; i < prox_maxN; i++)
-+        information()(2 * prox_maxN + i, 2 * prox_maxN + i) = info;
-+
-+    int n;
-+    is >> n;
-+    for (int i = 0; i < n && i < prox_maxN; i++) {
-+        is >> _prox_pairs[0][i] >> _prox_pairs[1][i];
-+        double info;
-+        is >> info;
-+        information()(2*i, 2*i) = info;
-+        information()(2*i+1, 2*i+1) = info;
-+        if (is.bad()) return false;
-+        _num_prox_pairs = i + 1;
-+    }
++bool CacheProximity::resolveDependencies() {
 +    return true;
++}
++
++void CacheProximity::updateImpl() {
++  const VertexProx* v = static_cast<const VertexProx*>(vertex());
++  Eigen::Rotation2Dd dR = Eigen::Rotation2Dd(v->estimate().rotation().angle() + M_PI_2);
++  int n = v->numProx();
++  _locProxPoints.resize(n);
++  _locNormalVecs.resize(n);
++  _absProxPoints.resize(n);
++  _absNormalVecs.resize(n);
++  _diffProxPoints.resize(n);
++  _diffNormalVecs.resize(n);
++  for (int i = 0; i < n; i++) {
++      _locProxPoints[i] = v->proximity(i);
++      _locNormalVecs[i] = r(i) / r(i).norm();
++      _absProxPoints[i] = v->estimate() * r(i);
++      _absNormalVecs[i] = v->estimate().rotation() * u(i);
++      _diffProxPoints[i] = dR * r(i);
++      _diffNormalVecs[i] = dR * u(i);
 +  }
++}
 +
-+  bool EdgeSwitchProx::write(std::ostream& os) const {
-+      int n = _num_prox_pairs;
-+      os << _num_prox_pairs << " ";
-+      for (int i = 0; i < _num_prox_pairs && i < prox_maxN; i++)
-+          os << _prox_pairs[0][i] << " " << _prox_pairs[1][i] << " " << information()(2*i, 2*i) << " ";
-+      return true;
-+  }
++}
+diff --git a/g2o/types/slam2d/cache_prox.h b/g2o/types/slam2d/cache_prox.h
+new file mode 100644
+index 00000000..c5cdfde9
+--- /dev/null
++++ b/g2o/types/slam2d/cache_prox.h
+@@ -0,0 +1,42 @@
++// This library was made by Kotaro Wada. (211t373t[at]stu.kobe-u.ac.jp)
 +
-+  void EdgeSwitchProx::computeError() {
-+      const SE2 vi = dynamic_cast<VertexProx*>(_vertices[0])->estimate();
-+      const SE2 vj = dynamic_cast<VertexProx*>(_vertices[1])->estimate();
-+      //const std::array<number_t, prox_maxN> vk = sigmoid_est();
-+      const std::array<number_t, prox_maxN> vk = dynamic_cast<VertexSwitchProxPair*>(_vertices[2])->estimate();
-+      for (int k = 0; k < _num_prox_pairs && k < prox_maxN; k++) {
-+          const Vector2 ri = from_prox(k),  rj = to_prox(k), qi = from_gr_prox(k), qj = to_gr_prox(k);
-+          if (ri == Vector2() || rj == Vector2() || qi == Vector2() || qj == Vector2()) continue;
-+          const Vector2 ei = vi.rotation() * ri, ej = vj.rotation() * rj;
-+          const number_t li = cst((ei / ri.norm()).dot(qj - qi)), lj = cst((ej / rj.norm()).dot(qi - qj));
-+          _error.block<2, 1>(2 * k, 0) << li * vk[k], lj * vk[k];
-+      }
-+      for (int k = 0; k < prox_maxN; k++)
-+          _error(2 * prox_maxN + k) = cst(1.) - vk[k];
-+          //_error(2 * prox_maxN + k) = cst(1.) - sqrt(fabs(vk[k]));
-+  }
++#ifndef G2O_PARAMETER_PROXIMITY_H_
++#define G2O_PARAMETER_PROXIMITY_H_
 +
-+#ifndef NUMERIC_JACOBIAN_TWO_D_TYPES
-+  void EdgeSwitchProx::linearizeOplus() {
-+      _jacobianOplusXi.setZero();
-+      _jacobianOplusXj.setZero();
-+      _jacobianOplusXk.setZero();
-+      const SE2 vi = dynamic_cast<VertexProx*>(_vertices[0])->estimate();
-+      const SE2 vj = dynamic_cast<VertexProx*>(_vertices[1])->estimate();
-+      //const std::array<number_t, prox_maxN> vk = sigmoid_est();
-+      //const std::array<number_t, prox_maxN> dvk = def_sig_est();
-+      const std::array<number_t, prox_maxN> vk = dynamic_cast<VertexSwitchProxPair*>(_vertices[2])->estimate();
-+      const Vector2 dt = vj.translation() - vi.translation();
-+      const Matrix2 Ri = vi.rotation().toRotationMatrix(),
-+          Rj = vj.rotation().toRotationMatrix(),
-+          dR = Ri.transpose() * Rj;
-+      for (int k = 0; k < _num_prox_pairs && k < prox_maxN; k++) {
-+          const Vector2 ri = from_prox(k), rj = to_prox(k), qi = from_gr_prox(k), qj = to_gr_prox(k);
-+          if (ri == Vector2() || rj == Vector2() || qi == Vector2() || qj == Vector2()) continue;
-+          const number_t ni = 1. / ri.norm(), nj = 1. / rj.norm();
-+          const Vector2 ei = vi.rotation() * ri, ej = vj.rotation() * rj;
-+          const number_t li = cst((ei * ni).dot(qj - qi)), lj = cst((ej * nj).dot(qi - qj));
-+          Vector2 z;
++#include <cmath>
++#include <vector>
 +
-+          _jacobianOplusXi.block<1, 2>(2*k, 0) = -ri;
-+          _jacobianOplusXj.block<1, 2>(2*k, 0) = dR.transpose() * ri;
-+          z = dR * rj + Ri.transpose() * dt;
-+          _jacobianOplusXi(2*k, 2) = ri.x() * z.y() - ri.y() * z.x();
-+          z = dR * rj;
-+          _jacobianOplusXj(2*k, 2) = -ri.x() * z.y() + ri.y() * z.x();
-+          _jacobianOplusXi.block<1, 3>(2*k, 0) = _jacobianOplusXi.block<1, 3>(2*k, 0) * ni * vk[k];
-+          _jacobianOplusXj.block<1, 3>(2*k, 0) = _jacobianOplusXj.block<1, 3>(2*k, 0) * ni * vk[k];
-+          _jacobianOplusXj.block<1, 2>(2*k+1, 0) = -rj;
-+          _jacobianOplusXi.block<1, 2>(2*k+1, 0) = dR * rj;
-+          z = dR.transpose() * ri - Rj.transpose() * dt;
-+          _jacobianOplusXj(2*k+1, 2) = rj.x() * z.y() - rj.y() * z.x();
-+          z = dR.transpose() * ri;
-+          _jacobianOplusXi(2*k+1, 2) = -rj.x() * z.y() + rj.y() * z.x();
-+          _jacobianOplusXj.block<1, 3>(2*k+1, 0) = _jacobianOplusXj.block<1, 3>(2*k+1, 0) * nj * vk[k];
-+          _jacobianOplusXi.block<1, 3>(2*k+1, 0) = _jacobianOplusXi.block<1, 3>(2*k+1, 0) * nj * vk[k];
-+          _jacobianOplusXk.block<2, 1>(2 * k, k) << li, lj;
-+          //_jacobianOplusXk.block<2, 1>(2 * k, k) << li * dvk[k], lj * dvk[k];
-+      }
-+      for (int k = 0; k < prox_maxN; k++)
-+          _jacobianOplusXk(2 * prox_maxN + k, k) = cst(-1.);
-+          //_jacobianOplusXk(2 * prox_maxN + k, k) = -sign(vk[k]) / (2. * sqrt(fabs(vk[k])));
-+          //_jacobianOplusXk(2 * prox_maxN + k, k) = -dvk[k];
++#include "g2o/core/cache.h"
++#include "g2o_types_slam2d_api.h"
++#include "vertex_prox.h"
 +
-+      /*
-+      cout << this->id() << " : " << _vertices[0]->id() << endl;
-+      for (int i = 0; i < 20; i++) {
-+          if (_jacobianOplusXi.col(0)[i] == 0.) break;
-+          cout << _jacobianOplusXi.col(0)[i] << ", ";
-+      }
-+      cout << endl;
-+      for (int i = 0; i < 20; i++) {
-+          if (_jacobianOplusXi.col(1)[i] == 0.) break;
-+          cout << _jacobianOplusXi.col(1)[i] << ", ";
-+      }
-+      cout << endl;
-+      for (int i = 0; i < 20; i++) {
-+          if (_jacobianOplusXi.col(2)[i] == 0.) break;
-+          cout << _jacobianOplusXi.col(2)[i] << ", ";
-+      }
-+      cout << endl << endl;
-+      cout << this->id() << " : " << _vertices[1]->id() << endl;
-+      for (int i = 0; i < 20; i++) {
-+          if (_jacobianOplusXj.col(0)[i] == 0.) break;
-+          cout << _jacobianOplusXj.col(0)[i] << ", ";
-+      }
-+      cout << endl;
-+      for (int i = 0; i < 20; i++) {
-+          if (_jacobianOplusXj.col(1)[i] == 0.) break;
-+          cout << _jacobianOplusXj.col(1)[i] << ", ";
-+      }
-+      cout << endl;
-+      for (int i = 0; i < 20; i++) {
-+          if (_jacobianOplusXj.col(2)[i] == 0.) break;
-+          cout << _jacobianOplusXj.col(2)[i] << ", ";
-+      }
-+      cout << endl << endl;
-+      */
-+  }
++namespace g2o {
++
++class G2O_TYPES_SLAM2D_API CacheProximity : public Cache {
++ public:
++  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
++  CacheProximity();
++  virtual void updateImpl();
++
++  inline const int& numProx() const { return _locProxPoints.size(); }
++  inline const Vector2& r(int i) const { return _locProxPoints[i]; }
++  inline const Vector2& u(int i) const { return _locNormalVecs[i]; }
++  inline const Vector2& q(int i) const { return _absProxPoints[i]; }
++  inline const Vector2& e(int i) const { return _absNormalVecs[i]; }
++  inline const Vector2& dq(int i) const { return _diffProxPoints[i]; }
++  inline const Vector2& de(int i) const { return _diffNormalVecs[i]; }
++
++ protected:
++     std::vector<Vector2> _locProxPoints;
++     std::vector<Vector2> _absProxPoints;
++     std::vector<Vector2> _diffProxPoints;
++     std::vector<Vector2> _locNormalVecs;
++     std::vector<Vector2> _absNormalVecs;
++     std::vector<Vector2> _diffNormalVecs;
++
++ protected:
++  virtual bool resolveDependencies();
++};
++
++}
 +#endif
+diff --git a/g2o/types/slam2d/edge_em_prox.cpp b/g2o/types/slam2d/edge_em_prox.cpp
+new file mode 100644
+index 00000000..dcf5a479
+--- /dev/null
++++ b/g2o/types/slam2d/edge_em_prox.cpp
+@@ -0,0 +1,161 @@
++// This library was made by Kotaro Wada. (211t373t[at]stu.kobe-u.ac.jp)
 +
-+  bool EdgeSwitchProx::setMeasurementFromState(){
-+      /*
-+      VertexSE2Proximity* from_node = static_cast<VertexSE2Proximity*>(_vertices[0]);
-+      VertexSE2Proximity* to_node = static_cast<VertexSE2Proximity*>(_vertices[1]);
-+      
-+      _measurement = from_node->estimate().inverse() * to_node->estimate();
-+      */
-+    return true;
-+  }
-+
-+
-+  void EdgeSwitchProx::initialEstimate(const OptimizableGraph::VertexSet& from, OptimizableGraph::Vertex* /*to_*/)
-+  {
-+    /*
-+    VertexSE2Proximity* from_node = dynamic_cast<VertexSE2Proximity*>(_vertices[0]);
-+    VertexSE2Proximity* to_node = dynamic_cast<VertexSE2Proximity*>(_vertices[1]);
-+    if (from.count(from_node) > 0)
-+        to_node->setEstimate(from_node->estimate() * _measurement);
-+    else
-+        from_node->setEstimate(to_node->estimate() * _measurement.inverse());
-+    */
-+  }
-+
-+  inline Vector2 EdgeSwitchProx::from_prox(int i) const {
-+      if (0 <= i && i < _num_prox_pairs)
-+          return dynamic_cast<VertexProx*>(_vertices[0])->proximity(_prox_pairs[0][i]);
-+      cerr << "out of range" << endl;
-+      return Vector2();
-+  };
-+  inline Vector2 EdgeSwitchProx::to_prox(int i) const {
-+      if (0 <= i && i < _num_prox_pairs)
-+          return dynamic_cast<VertexProx*>(_vertices[1])->proximity(_prox_pairs[1][i]);
-+      cerr << "out of range" << endl;
-+      return Vector2();
-+  };
-+  inline Vector2 EdgeSwitchProx::from_gr_prox(int i) const {
-+      if (0 <= i && i < _num_prox_pairs) {
-+          Vector2 fp = from_prox(i);
-+          if (fp == Vector2()) return Vector2();
-+          return (dynamic_cast<VertexProx*>(_vertices[0])->estimate() * fp);
-+      }
-+      cerr << "out of range" << endl;
-+      return Vector2();
-+  };
-+  inline Vector2 EdgeSwitchProx::to_gr_prox(int i) const {
-+      if (0 <= i && i < _num_prox_pairs) {
-+          Vector2 tp = to_prox(i);
-+          if (tp == Vector2()) return Vector2();
-+          return (dynamic_cast<VertexProx*>(_vertices[1])->estimate() * tp);
-+      }
-+      cerr << "out of range" << endl;
-+      return Vector2();
-+  };
++#include "edge_em_prox.h"
++#include <iostream>
 +
 +#ifdef G2O_HAVE_OPENGL
-+  EdgeSwitchProxDrawAction::EdgeSwitchProxDrawAction()
-+      : DrawAction(typeid(EdgeSwitchProx).name()), _triangleX(nullptr), _triangleY(nullptr), _triangleZ(nullptr) {}
++#include "g2o/stuff/opengl_wrapper.h"
++#include "g2o/stuff/opengl_primitives.h"
++#endif
 +
-+  bool EdgeSwitchProxDrawAction::refreshPropertyPtrs(HyperGraphElementAction::Parameters* params_) {
-+      if (!DrawAction::refreshPropertyPtrs(params_))
-+          return false;
-+      if (_previousParams) {
-+          _triangleX = _previousParams->makeProperty<FloatProperty>(_typeName + "::N_Edge_Arrow_Length", .0f);
-+          _triangleY = _previousParams->makeProperty<FloatProperty>(_typeName + "::N_Edge_Width", 3.0f);
-+          _triangleZ = _previousParams->makeProperty<FloatProperty>(_typeName + "::P_Edge_Width", 2.0f);
-+      }
-+      else {
-+          _triangleX = 0;
-+          _triangleY = 0;
-+          _triangleZ = 0;
-+      }
-+      return true;
-+  }
++namespace g2o {
++    using namespace std;
 +
-+  HyperGraphElementAction* EdgeSwitchProxDrawAction::operator()(HyperGraph::HyperGraphElement* element,
-+      HyperGraphElementAction::Parameters* params_) {
-+      if (typeid(*element).name() != _typeName)
-+          return nullptr;
 +
-+      refreshPropertyPtrs(params_);
-+      if (!_previousParams)
-+          return this;
++    EdgeEMProx::EdgeEMProx()
++        : BaseBinaryEdge<2, array<int, 2>, VertexProx, VertexProx>(), _proxPair(), switchInfo(0.){
++        _cacheFrom = 0;
++        _cacheTo = 0;
++        information().setZero();
++        maxInfo.setZero();
++        _ProxPairWeightInfo = 0;
++        resizeParameters(1);
++        installParameter(_ProxPairWeightInfo, 0);
++    }
 +
-+      if (_show && !_show->value())
-+          return this;
++    bool EdgeEMProx::resolveCaches() {
++        ParameterVector pv(0);
++        resolveCache(_cacheFrom, (OptimizableGraph::Vertex*)_vertices[0],
++            "CACHE_PROX", pv);
++        resolveCache(_cacheTo, (OptimizableGraph::Vertex*)_vertices[1],
++            "CACHE_PROX", pv);
++        return (_cacheFrom && _cacheTo);
++    }
 +
-+      EdgeSwitchProx* e = static_cast<EdgeSwitchProx*>(element);
-+      VertexProx* from = static_cast<VertexProx*>(e->vertex(0));
-+      VertexProx* to = static_cast<VertexProx*>(e->vertex(1));
-+      if (!from && !to)
-+          return this;
-+      SE2 fromTransform;
-+      SE2 toTransform;
-+      glPushAttrib(GL_ENABLE_BIT | GL_LIGHTING | GL_COLOR);
-+      glDisable(GL_LIGHTING);
-+      /*
-+      if (!from) {
-+          glColor3f(POSE_EDGE_GHOST_COLOR);
-+          toTransform = to->estimate();
-+          fromTransform = to->estimate() * e->measurement().inverse();
-+          // DRAW THE FROM EDGE AS AN ARROW
-+          glPushMatrix();
-+          glTranslatef((float)fromTransform.translation().x(), (float)fromTransform.translation().y(), 0.f);
-+          glRotatef((float)RAD2DEG(fromTransform.rotation().angle()), 0.f, 0.f, 1.f);
-+          opengl::drawArrow2D((float)_triangleX->value(), (float)_triangleY->value(), (float)_triangleX->value() * .3f);
-+          glPopMatrix();
-+      }
-+      else if (!to) {
-+          glColor3f(POSE_EDGE_GHOST_COLOR);
-+          fromTransform = from->estimate();
-+          toTransform = from->estimate() * e->measurement();
-+          // DRAW THE TO EDGE AS AN ARROW
-+          glPushMatrix();
-+          glTranslatef(toTransform.translation().x(), toTransform.translation().y(), 0.f);
-+          glRotatef((float)RAD2DEG(toTransform.rotation().angle()), 0.f, 0.f, 1.f);
-+          opengl::drawArrow2D((float)_triangleX->value(), (float)_triangleY->value(), (float)_triangleX->value() * .3f);
-+          glPopMatrix();
-+      }
-+      */
-+      { //else {
-+          glColor3f(POSE_EDGE_COLOR);
-+          fromTransform = from->estimate();
-+          toTransform = to->estimate();
-+      }
-+      //glGetFloatv(GL_LINE_WIDTH, &(float)_triangleY->value());
-+      if (_triangleY->value() != 0) {
-+          glLineWidth((float)_triangleY->value());
-+          glBegin(GL_LINES);
-+          glVertex3f((float)fromTransform.translation().x(), (float)fromTransform.translation().y(), 0.f);
-+          glVertex3f((float)toTransform.translation().x(), (float)toTransform.translation().y(), 0.f);
-+          glEnd();
-+      }
-+      //glGetFloatv(GL_LINE_WIDTH, &(float)_triangleZ->value());
-+      if (_triangleZ->value() != 0) {
-+          glLineWidth((float)_triangleZ->value());
-+          glColor3f(LANDMARK_EDGE_COLOR);
-+          glBegin(GL_LINES);
-+          for (int i = 0; i < e->num_prox_pairs(); i++) {
-+              glVertex3f((float)e->from_gr_prox(i).x(), (float)e->from_gr_prox(i).y(), 0.f);
-+              glVertex3f((float)e->to_gr_prox(i).x(), (float)e->to_gr_prox(i).y(), 0.f);
-+          }
-+      }
-+      glEnd();
-+      glPopAttrib();
-+      return this;
-+  }
++    bool EdgeEMProx::read(std::istream& is) {
++        setMeasurementData(0);
++        if (is.bad()) return false;
++        information().setZero();
++        maxInfo.setZero();
++        if (!setParameterId(0, 0))
++            return false;
++        resolveParameters();
++        switchInfo = _ProxPairWeightInfo->Info();
++
++        is >> _proxPair[0] >> _proxPair[1];
++        double info;
++        is >> info;
++        maxInfo(0, 0) = info;
++        maxInfo(1, 1) = info;
++        information() = maxInfo;
++        if (is.bad()) return false;
++        return true;
++    }
++
++    bool EdgeEMProx::write(std::ostream& os) const {
++        os << _proxPair[0] << " " << _proxPair[1] << " " << maxInfo(0, 0) << " ";
++        return true;
++    }
++
++    void EdgeEMProx::computeError() {
++        _error.setZero();
++        information() = maxInfo;
++        const int fi = fp(), ti = tp();
++        _error(0, 0) = fc()->e(fi).dot(tc()->q(ti) - fc()->q(fi));
++        _error(1, 0) = tc()->e(ti).dot(fc()->q(fi) - tc()->q(ti));
++        information() = maxInfo * min(2. * switchInfo / (switchInfo + chi2()), 1.);
++    }
++
++#ifndef NUMERIC_JACOBIAN_TWO_D_TYPES
++    void EdgeEMProx::linearizeOplus() {
++        _jacobianOplusXi.setZero();
++        _jacobianOplusXj.setZero();
++        const SE2 vi = dynamic_cast<VertexProx*>(_vertices[0])->estimate();
++        const SE2 vj = dynamic_cast<VertexProx*>(_vertices[1])->estimate();
++        const Matrix2 Ri = vi.rotation().toRotationMatrix(),
++            Rj = vj.rotation().toRotationMatrix();
++        const int fi = fp(), ti = tp();
++        _jacobianOplusXi.block<1, 2>(0, 0) = -fc()->u(fi);
++        _jacobianOplusXi(0, 2) = fc()->de(fi).dot(tc()->q(ti) - fc()->q(fi)) - fc()->e(fi).dot(fc()->dq(fi));
++        _jacobianOplusXi.block<1, 2>(1, 0) = Ri.transpose() * tc()->e(ti);
++        _jacobianOplusXi(1, 2) = tc()->e(ti).dot(fc()->dq(fi));
++        _jacobianOplusXj.block<1, 2>(0, 0) = Rj.transpose() * fc()->e(fi);
++        _jacobianOplusXj(0, 2) = fc()->e(fi).dot(tc()->dq(ti));
++        _jacobianOplusXj.block<1, 2>(1, 0) = -tc()->u(ti);
++        _jacobianOplusXj(1, 2) = tc()->de(ti).dot(fc()->q(fi) - tc()->q(ti)) - tc()->e(ti).dot(tc()->dq(ti));
++    }
++#endif
++
++    bool EdgeEMProx::setMeasurementFromState() {
++        return true;
++    }
++
++
++    void EdgeEMProx::initialEstimate(const OptimizableGraph::VertexSet& from, OptimizableGraph::Vertex* /*to_*/) {}
++
++#ifdef G2O_HAVE_OPENGL
++    EdgeEMProxDrawAction::EdgeEMProxDrawAction()
++        : DrawAction(typeid(EdgeEMProx).name()), _triangleY(nullptr), _triangleZ(nullptr) {}
++
++    bool EdgeEMProxDrawAction::refreshPropertyPtrs(HyperGraphElementAction::Parameters* params_) {
++        if (!DrawAction::refreshPropertyPtrs(params_))
++            return false;
++        if (_previousParams) {
++            _triangleY = _previousParams->makeProperty<FloatProperty>(_typeName + "::N_Edge_Width", 3.0f);
++            _triangleZ = _previousParams->makeProperty<FloatProperty>(_typeName + "::P_Edge_Width", 2.0f);
++        }
++        else {
++            _triangleY = 0;
++            _triangleZ = 0;
++        }
++        return true;
++    }
++
++    HyperGraphElementAction* EdgeEMProxDrawAction::operator()(HyperGraph::HyperGraphElement* element,
++        HyperGraphElementAction::Parameters* params_) {
++        if (typeid(*element).name() != _typeName)
++            return nullptr;
++
++        refreshPropertyPtrs(params_);
++        if (!_previousParams)
++            return this;
++
++        if (_show && !_show->value())
++            return this;
++
++        EdgeEMProx* e = static_cast<EdgeEMProx*>(element);
++        VertexProx* from = static_cast<VertexProx*>(e->vertex(0));
++        VertexProx* to = static_cast<VertexProx*>(e->vertex(1));
++        if (!from && !to)
++            return this;
++        SE2 fromTransform;
++        SE2 toTransform;
++        Vector2 fromProximity;
++        Vector2 toProximity;
++        glPushAttrib(GL_ENABLE_BIT | GL_LIGHTING | GL_COLOR);
++        glDisable(GL_LIGHTING);
++        fromTransform = from->estimate();
++        toTransform = to->estimate();
++        fromProximity = e->fc()->q(e->fp());
++        toProximity = e->tc()->q(e->tp());
++        if (_triangleY->value() != 0) {
++            glLineWidth((float)_triangleY->value());
++            glColor3f(POSE_EDGE_COLOR);
++            glBegin(GL_LINES);
++            glVertex3f((float)fromTransform.translation().x(), (float)fromTransform.translation().y(), 0.f);
++            glVertex3f((float)toTransform.translation().x(), (float)toTransform.translation().y(), 0.f);
++            glEnd();
++        }
++        if (_triangleZ->value() != 0) {
++            glLineWidth((float)_triangleZ->value());
++            glColor3f(LANDMARK_EDGE_COLOR);
++            glBegin(GL_LINES);
++            glVertex3f((float)fromProximity.x(), (float)fromProximity.y(), 0.f);
++            glVertex3f((float)toProximity.x(), (float)toProximity.y(), 0.f);
++            glEnd();
++        }
++        glPopAttrib();
++        return this;
++    }
 +#endif
 +}
 diff --git a/g2o/types/slam2d/edge_em_prox.h b/g2o/types/slam2d/edge_em_prox.h
 new file mode 100644
-index 00000000..d09a7956
+index 00000000..06c6a9f6
 --- /dev/null
 +++ b/g2o/types/slam2d/edge_em_prox.h
-@@ -0,0 +1,98 @@
-+// This class was made by Kotaro Wada. (211t373t[at]stu.kobe-u.ac.jp)
+@@ -0,0 +1,96 @@
++// This library was made by Kotaro Wada. (211t373t[at]stu.kobe-u.ac.jp)
 +
-+#ifndef G2O_EDGE_SWITCHING_PROX_H_
-+#define G2O_EDGE_SWITCHING_PROX_H_
++#ifndef G2O_EDGE_EM_PROX_H_
++#define G2O_EDGE_EM_PROX_H_
 +
 +//#define NUMERIC_JACOBIAN_TWO_D_TYPES
 +
-+#include "g2o/core/base_ternary_edge.h"
++#include "g2o/core/base_binary_edge.h"
 +#include "vertex_prox.h"
-+#include "vertex_switch_pp.h"
++#include "cache_prox.h"
 +#include "parameter_switch_weight.h"
-+
-+//#include "vertex_se2.h"
 +#include "g2o_types_slam2d_api.h"
 +
-+#ifndef prox_maxN
-+#define prox_maxN 10
-+#endif
-+
 +namespace g2o {
-+    class G2O_TYPES_SLAM2D_API EdgeSwitchProx : public BaseTernaryEdge < 3 * prox_maxN, std::array<int, 2 * prox_maxN>, VertexProx, VertexProx, VertexSwitchProxPair > {
-+  public:
-+      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-+          EdgeSwitchProx();
-+      virtual bool read(std::istream& is);
-+      virtual bool write(std::ostream& os) const;
 +
-+      void computeError();
++    class G2O_TYPES_SLAM2D_API EdgeEMProx : public BaseBinaryEdge < 2, std::array<int, 2>, VertexProx, VertexProx > {
++    public:
++        EIGEN_MAKE_ALIGNED_OPERATOR_NEW
++            EdgeEMProx();
++
++        virtual bool resolveCaches();
++
++        virtual bool read(std::istream& is);
++        virtual bool write(std::ostream& os) const;
++
++        void computeError();
 +#ifndef NUMERIC_JACOBIAN_TWO_D_TYPES
-+      virtual void linearizeOplus();
++        virtual void linearizeOplus();
 +#endif
 +
-+      virtual void setMeasurement(const std::array<int, 2 * prox_maxN> m) {
-+          for (int i = 0; i < 2 * prox_maxN; i++)
-+              _measurement[i] = m[i];
-+      }
++        virtual void setMeasurement(const std::array<int, 2> m) {
++            for (int i = 0; i < 2; i++)
++                _measurement[i] = m[i];
++        }
 +
-+      virtual void setMeasurement(const int m[2 * prox_maxN]) {
-+          for (int i = 0; i < 2 * prox_maxN; i++)
-+              _measurement[i] = m[i];
-+      }
++        virtual void setMeasurement(const int m[2]) {
++            for (int i = 0; i < 2; i++)
++                _measurement[i] = m[i];
++        }
 +
-+      virtual bool setMeasurementData(const int* d) {
-+          for(int i = 0; i < 2 * prox_maxN; i++)
-+              _measurement[i] = d[i];
-+          return true;
-+      }
++        virtual bool setMeasurementData(const int* d) {
++            for (int i = 0; i < 2; i++)
++                _measurement[i] = d[i];
++            return true;
++        }
 +
-+      virtual bool setMeasurementData(const int d) {
-+          for (int i = 0; i < 2 * prox_maxN; i++)
-+              _measurement[i] = d;
-+          return true;
-+      }
++        virtual bool setMeasurementData(const int d) {
++            for (int i = 0; i < 2; i++)
++                _measurement[i] = d;
++            return true;
++        }
 +
-+      virtual bool getMeasurementData(int d[2 * prox_maxN]) const {
-+          for (int i = 0; i < 2 * prox_maxN; i++)
-+              d[i] = _measurement[i];
-+          return true;
-+      }
++        virtual bool getMeasurementData(int d[2]) const {
++            for (int i = 0; i < 2; i++)
++                d[i] = _measurement[i];
++            return true;
++        }
 +
-+      virtual int measurementDimension() const { return 3; }
++        virtual int measurementDimension() const { return 3; }
 +
-+      virtual bool setMeasurementFromState();
++        virtual bool setMeasurementFromState();
 +
-+      virtual number_t initialEstimatePossible(const OptimizableGraph::VertexSet& from, OptimizableGraph::Vertex* to) {
-+          (void)to;
-+          return (from.count(_vertices[0]) == 1 ? 1.0 : -1.0);
-+      }
++        virtual number_t initialEstimatePossible(const OptimizableGraph::VertexSet& from, OptimizableGraph::Vertex* to) {
++            (void)to;
++            return (from.count(_vertices[0]) == 1 ? 1.0 : -1.0);
++        }
 +
-+      virtual void initialEstimate(const OptimizableGraph::VertexSet& from, OptimizableGraph::Vertex* to);
++        virtual void initialEstimate(const OptimizableGraph::VertexSet& from, OptimizableGraph::Vertex* to);
 +
-+      virtual inline Vector2 from_prox(int i) const;
-+      virtual inline Vector2 to_prox(int i) const;
-+      virtual inline Vector2 from_gr_prox(int i) const;
-+      virtual inline Vector2 to_gr_prox(int i) const;
-+      virtual inline int num_prox_pairs() const { return _num_prox_pairs; };
++        const virtual inline int fp() const { return _proxPair[0]; };
++        const virtual inline int tp() const { return _proxPair[1]; };
++        const virtual inline CacheProximity* fc() const { return _cacheFrom; };
++        const virtual inline CacheProximity* tc() const { return _cacheTo; };
 +
-+  private:
-+      int _prox_pairs[2][prox_maxN];
-+      int _num_prox_pairs;
-+      ParameterSwitchWeight* _ProxPairWeightInfo;
-+      number_t info;
-+  };
++    private:
++        std::array<int, 2> _proxPair;
++        ParameterSwitchWeight* _ProxPairWeightInfo;
++        CacheProximity* _cacheFrom, * _cacheTo;
++        Matrix2 maxInfo;
++        double switchInfo;
++    };
 +
 +#ifdef G2O_HAVE_OPENGL
-+  class G2O_TYPES_SLAM2D_API EdgeSwitchProxDrawAction : public DrawAction {
-+  public:
-+      EdgeSwitchProxDrawAction();
-+      virtual HyperGraphElementAction* operator()(HyperGraph::HyperGraphElement* element,
-+          HyperGraphElementAction::Parameters* params_);
-+  protected:
-+      virtual bool refreshPropertyPtrs(HyperGraphElementAction::Parameters* params_);
-+      FloatProperty* _triangleX, * _triangleY, * _triangleZ;
-+  };
++    class G2O_TYPES_SLAM2D_API EdgeEMProxDrawAction : public DrawAction {
++    public:
++        EdgeEMProxDrawAction();
++        virtual HyperGraphElementAction* operator()(HyperGraph::HyperGraphElement* element,
++            HyperGraphElementAction::Parameters* params_);
++    protected:
++        virtual bool refreshPropertyPtrs(HyperGraphElementAction::Parameters* params_);
++        FloatProperty* _triangleY, * _triangleZ;
++    };
 +#endif
 +
 +}
@@ -1039,10 +1068,10 @@ index 00000000..a2199848
 +#endif
 diff --git a/g2o/types/slam2d/edge_prox.cpp b/g2o/types/slam2d/edge_prox.cpp
 new file mode 100644
-index 00000000..c287f40c
+index 00000000..70014b09
 --- /dev/null
 +++ b/g2o/types/slam2d/edge_prox.cpp
-@@ -0,0 +1,287 @@
+@@ -0,0 +1,248 @@
 +// This library was made by Kotaro Wada. (211t373t[at]stu.kobe-u.ac.jp)
 +
 +#include "edge_prox.h"
@@ -1057,15 +1086,8 @@ index 00000000..c287f40c
 +  using namespace std;
 +
 +
-+  // point to camera projection, monocular
-+#ifndef UseCache
 +  EdgeProx::EdgeProx()
-+      : BaseBinaryEdge<20, array<int, 2 * prox_maxN>, VertexProx, VertexProx>(), _num_prox_pairs(0), _prox_pairs() {
-+    information().setZero();
-+  }
-+#else
-+  EdgeProx::EdgeProx()
-+      : BaseBinaryEdge<20, array<int, 2 * prox_maxN>, VertexProx, VertexProx>() {
++      : BaseBinaryEdge<2, array<int, 2>, VertexProx, VertexProx>() {
 +      information().setZero();
 +      _cacheFrom = 0;
 +      _cacheTo = 0;
@@ -1074,131 +1096,54 @@ index 00000000..c287f40c
 +  bool EdgeProx::resolveCaches() {
 +      ParameterVector pv(0);
 +      resolveCache(_cacheFrom, (OptimizableGraph::Vertex*)_vertices[0],
-+          "CACHE_PROXIMITY", pv);
++          "CACHE_PROX", pv);
 +      resolveCache(_cacheTo, (OptimizableGraph::Vertex*)_vertices[1],
-+          "CACHE_PROXIMITY", pv);
++          "CACHE_PROX", pv);
 +      return (_cacheFrom && _cacheTo);
 +  }
-+#endif
 +
 +  bool EdgeProx::read(std::istream& is) {
-+    // measured keypoint
 +    setMeasurementData(0);
 +    if (is.bad()) return false;
-+    //readInformationMatrix(is);
-+    //  we overwrite the information matrix in case of read errors
-+    //if (is.bad()) information().setIdentity();
++    is >> _measurement[0] >> _measurement[1];
++    double info;
++    is >> info;
 +    information().setZero();
-+    int n;
-+    is >> n;
-+#ifndef UseCache
-+    _num_prox_pairs = 0;
-+    for (int i = 0; i < n && i < prox_maxN; i++) {
-+        is >> _prox_pairs[0][i] >> _prox_pairs[1][i];
-+        double info;
-+        is >> info;
-+        information()(2 * i, 2 * i) = info;
-+        information()(2 * i + 1, 2 * i + 1) = info;
-+        if (is.bad()) return false;
-+        _num_prox_pairs = i + 1;
-+    }
-+#else
-+    std::array<std::array<Vector2, prox_maxN>, 2> _prox_points;
-+    for (int i = 0; i < n && i < prox_maxN; i++) {
-+        is >> _prox_pairs[0][i] >> _prox_pairs[1][i];
-+        _prox_points[0][i] = dynamic_cast<VertexProx*>(_vertices[0])->proximity(_prox_pairs[0][i]);
-+        _prox_points[1][i] = dynamic_cast<VertexProx*>(_vertices[1])->proximity(_prox_pairs[1][i]);
-+        double info;
-+        is >> info;
-+        information()(2 * i, 2 * i) = info;
-+        information()(2 * i + 1, 2 * i + 1) = info;
-+        if (is.bad()) return false;
-+    }
-+    _cacheFrom->setLocalProx(_prox_points[0]);
-+    _cacheTo->setLocalProx(_prox_points[1]);
-+#endif
++    information()(0, 0) = info;
++    information()(1, 1) = info;
++    if (is.bad()) return false;
 +    return true;
 +  }
 +
 +  bool EdgeProx::write(std::ostream& os) const {
-+      int n = _num_prox_pairs;
-+      os << _num_prox_pairs << " ";
-+      for (int i = 0; i < _num_prox_pairs && i < prox_maxN; i++) {
-+          double info;
-+          os << _prox_pairs[0][i] << " " << _prox_pairs[1][i] << " " << information()(2*i, 2*i) << " ";
-+      }
++      os << _measurement[0] << " " << _measurement[1] << " " << information()(0, 0) << " ";
 +      return true;
 +  }
 +
 +  void EdgeProx::computeError() {
-+#ifndef UseCache
-+      const SE2 vi = dynamic_cast<VertexProx*>(_vertices[0])->estimate();
-+      const SE2 vj = dynamic_cast<VertexProx*>(_vertices[1])->estimate();
-+      for (int k = 0; k < _num_prox_pairs && k < prox_maxN; k++) {
-+          const Vector2 ri = from_prox(k),  rj = to_prox(k), qi = from_gr_prox(k), qj = to_gr_prox(k);
-+          if (ri == Vector2() || rj == Vector2() || qi == Vector2() || qj == Vector2()) continue;
-+          const Vector2 ei = vi.rotation() * ri, ej = vj.rotation() * rj;
-+          const number_t li = cst((ei / ri.norm()).dot(qj - qi)), lj = cst((ej / rj.norm()).dot(qi - qj));
-+          _error.block<2, 1>(2*k, 0) << li, lj;
-+      }
-+#else
-+      for (int i = 0; i < _num_prox_pairs && i < prox_maxN; i++) {
-+          const number_t fl = cst(f()->e(i).dot(t()->q(i) - f()->q(i))), tl = cst(t()->e(i).dot(f()->q(i) - t()->q(i)));
-+          _error.block<2, 1>(2 * i, 0) << fl, tl;
-+      }
-+#endif
++      _error.setZero();
++      const int fi = fp(), ti = tp();
++      _error(0, 0) = fc()->e(fi).dot(tc()->q(ti) - fc()->q(fi));
++      _error(1, 0) = tc()->e(ti).dot(fc()->q(fi) - tc()->q(ti));
 +  }
 +
 +#ifndef NUMERIC_JACOBIAN_TWO_D_TYPES
 +  void EdgeProx::linearizeOplus() {
 +      _jacobianOplusXi.setZero();
 +      _jacobianOplusXj.setZero();
-+#ifndef UseCache
-+      const SE2 vi = dynamic_cast<VertexProx*>(_vertices[0])->estimate();
-+      const SE2 vj = dynamic_cast<VertexProx*>(_vertices[1])->estimate();
-+      const Vector2 dt = vj.translation() - vi.translation();
-+      const Matrix2 Ri = vi.rotation().toRotationMatrix(),
-+          Rj = vj.rotation().toRotationMatrix(),
-+          dR = Ri.transpose() * Rj;
-+      for (int k = 0; k < _num_prox_pairs && k < prox_maxN; k++) {
-+          const Vector2 ri = from_prox(k), rj = to_prox(k);
-+          if (ri == Vector2() || rj == Vector2()) continue;
-+          const number_t ni = 1. / ri.norm(), nj = 1. / rj.norm();
-+          Vector2 z;
-+
-+          _jacobianOplusXi.block<1, 2>(2*k, 0) = -ri;
-+          _jacobianOplusXj.block<1, 2>(2*k, 0) = dR.transpose() * ri;
-+          z = dR * rj + Ri.transpose() * dt;
-+          _jacobianOplusXi(2*k, 2) = ri.x() * z.y() - ri.y() * z.x();
-+          z = dR * rj;
-+          _jacobianOplusXj(2*k, 2) = -ri.x() * z.y() + ri.y() * z.x();
-+          _jacobianOplusXi.block<1, 3>(2*k, 0) = _jacobianOplusXi.block<1, 3>(2*k, 0) * ni;
-+          _jacobianOplusXj.block<1, 3>(2*k, 0) = _jacobianOplusXj.block<1, 3>(2*k, 0) * ni;
-+          _jacobianOplusXj.block<1, 2>(2*k+1, 0) = -rj;
-+          _jacobianOplusXi.block<1, 2>(2*k+1, 0) = dR * rj;
-+          z = dR.transpose() * ri - Rj.transpose() * dt;
-+          _jacobianOplusXj(2*k+1, 2) = rj.x() * z.y() - rj.y() * z.x();
-+          z = dR.transpose() * ri;
-+          _jacobianOplusXi(2*k+1, 2) = -rj.x() * z.y() + rj.y() * z.x();
-+          _jacobianOplusXj.block<1, 3>(2*k+1, 0) = _jacobianOplusXj.block<1, 3>(2*k+1, 0) * nj;
-+          _jacobianOplusXi.block<1, 3>(2*k+1, 0) = _jacobianOplusXi.block<1, 3>(2*k+1, 0) * nj;
-+      }
-+#else
 +      const SE2 vi = dynamic_cast<VertexProx*>(_vertices[0])->estimate();
 +      const SE2 vj = dynamic_cast<VertexProx*>(_vertices[1])->estimate();
 +      const Matrix2 Ri = vi.rotation().toRotationMatrix(),
 +          Rj = vj.rotation().toRotationMatrix();
-+      for (int k = 0; k < _num_prox_pairs && k < prox_maxN; k++) {
-+          _jacobianOplusXi.block<1, 2>(2 * k, 0) = -f()->u(k);
-+          _jacobianOplusXj.block<1, 2>(2 * k, 0) = Rj.transpose() * f()->e(k);
-+          _jacobianOplusXi(2 * k, 2) = f()->de(k).dot(t()->q(k) - f()->q(k)) - f()->u(k).dot(f()->dq(k));
-+          _jacobianOplusXj(2 * k, 2) = f()->u(k).dot(t()->dq(k));
-+          _jacobianOplusXj.block<1, 2>(2 * k + 1, 0) = -t()->u(k);
-+          _jacobianOplusXi.block<1, 2>(2 * k + 1, 0) = Ri.transpose() * t()->e(k);
-+          _jacobianOplusXj(2 * k + 1, 2) = t()->de(k).dot(f()->q(k) - t()->q(k)) - t()->u(k).dot(t()->dq(k));
-+          _jacobianOplusXi(2 * k + 1, 2) = t()->u(k).dot(f()->dq(k));
-+      }
-+#endif
++      const int fi = fp(), ti = tp();
++      _jacobianOplusXi.block<1, 2>(0, 0) = -fc()->u(fi);
++      _jacobianOplusXi(0, 2) = fc()->de(fi).dot(tc()->q(ti) - fc()->q(fi)) - fc()->e(fi).dot(fc()->dq(fi));
++      _jacobianOplusXi.block<1, 2>(1, 0) = Ri.transpose() * tc()->e(ti);
++      _jacobianOplusXi(1, 2) = tc()->e(ti).dot(fc()->dq(fi));
++      _jacobianOplusXj.block<1, 2>(0, 0) = Rj.transpose() * fc()->e(fi);
++      _jacobianOplusXj(0, 2) = fc()->e(fi).dot(tc()->dq(ti));
++      _jacobianOplusXj.block<1, 2>(1, 0) = -tc()->u(ti);
++      _jacobianOplusXj(1, 2) = tc()->de(ti).dot(fc()->q(fi) - tc()->q(ti)) - tc()->e(ti).dot(tc()->dq(ti));
 +  }
 +#endif
 +
@@ -1220,55 +1165,43 @@ index 00000000..c287f40c
 +    //    from_node->setEstimate(to_node->estimate() * _measurement.inverse());
 +  }
 +
-+#ifndef UseCache
-+  inline Vector2 EdgeProx::from_prox(int i) const {
-+      if (0 <= i && i < _num_prox_pairs)
-+          return dynamic_cast<VertexProx*>(_vertices[0])->proximity(_prox_pairs[0][i]);
-+      cerr << "out of range" << endl;
-+      return Vector2();
-+  };
-+  inline Vector2 EdgeProx::to_prox(int i) const {
-+      if (0 <= i && i < _num_prox_pairs)
-+          return dynamic_cast<VertexProx*>(_vertices[1])->proximity(_prox_pairs[1][i]);
-+      cerr << "out of range" << endl;
-+      return Vector2();
-+  };
-+  inline Vector2 EdgeProx::from_gr_prox(int i) const {
-+      if (0 <= i && i < _num_prox_pairs) {
-+          Vector2 fp = from_prox(i);
-+          if (fp == Vector2()) return Vector2();
-+          return (dynamic_cast<VertexProx*>(_vertices[0])->estimate() * fp);
-+      }
-+      cerr << "out of range" << endl;
-+      return Vector2();
-+  };
-+  inline Vector2 EdgeProx::to_gr_prox(int i) const {
-+      if (0 <= i && i < _num_prox_pairs) {
-+          Vector2 tp = to_prox(i);
-+          if (tp == Vector2()) return Vector2();
-+          return (dynamic_cast<VertexProx*>(_vertices[1])->estimate() * tp);
-+      }
-+      cerr << "out of range" << endl;
-+      return Vector2();
-+  };
-+#else
++  bool EdgeMEstProx::read(std::istream& is) {
++      setMeasurementData(0);
++      if (is.bad()) return false;
++      double robustKernelDelta;
++      is >> _strRobustKernel >> robustKernelDelta;
++      is >> _measurement[0] >> _measurement[1];
++      double info;
++      is >> info;
++      information().setZero();
++      information()(0, 0) = info;
++      information()(1, 1) = info;
++      if (is.bad()) return false;
++      setRobustKernel(RobustKernelFactory::instance()->creator(_strRobustKernel)->construct());
++      robustKernel()->setDelta(robustKernelDelta);
++      return true;
++  }
 +
-+#endif
++  bool EdgeMEstProx::write(std::ostream& os) const {
++      vector<string> strRobustKernels;
++      RobustKernelFactory::instance()->fillKnownKernels(strRobustKernels);
++      os << _strRobustKernel << " " << robustKernel()->delta() << " "
++          << _measurement[0] << " " << _measurement[1] << " " << information()(0, 0) << " ";
++      return true;
++  }
 +
 +#ifdef G2O_HAVE_OPENGL
 +  EdgeProxDrawAction::EdgeProxDrawAction()
-+      : DrawAction(typeid(EdgeProx).name()), _triangleX(nullptr), _triangleY(nullptr), _triangleZ(nullptr) {}
++      : DrawAction(typeid(EdgeProx).name()), _triangleY(nullptr), _triangleZ(nullptr) {}
 +
 +  bool EdgeProxDrawAction::refreshPropertyPtrs(HyperGraphElementAction::Parameters* params_) {
 +      if (!DrawAction::refreshPropertyPtrs(params_))
 +          return false;
 +      if (_previousParams) {
-+          _triangleX = _previousParams->makeProperty<FloatProperty>(_typeName + "::N_Edge_Arrow_Length", .0f);
 +          _triangleY = _previousParams->makeProperty<FloatProperty>(_typeName + "::N_Edge_Width", 3.0f);
 +          _triangleZ = _previousParams->makeProperty<FloatProperty>(_typeName + "::P_Edge_Width", 2.0f);
 +      }
 +      else {
-+          _triangleX = 0;
 +          _triangleY = 0;
 +          _triangleZ = 0;
 +      }
@@ -1294,37 +1227,94 @@ index 00000000..c287f40c
 +          return this;
 +      SE2 fromTransform;
 +      SE2 toTransform;
++      Vector2 fromProximity;
++      Vector2 toProximity;
 +      glPushAttrib(GL_ENABLE_BIT | GL_LIGHTING | GL_COLOR);
 +      glDisable(GL_LIGHTING);
-+      glColor3f(POSE_EDGE_COLOR);
 +      fromTransform = from->estimate();
 +      toTransform = to->estimate();
-+      //glGetFloatv(GL_LINE_WIDTH, &(float)_triangleY->value());
++      fromProximity = e->fc()->q(e->fp());
++      toProximity = e->tc()->q(e->tp());
 +      if (_triangleY->value() != 0) {
 +          glLineWidth((float)_triangleY->value());
++          glColor3f(POSE_EDGE_COLOR);
 +          glBegin(GL_LINES);
 +          glVertex3f((float)fromTransform.translation().x(), (float)fromTransform.translation().y(), 0.f);
 +          glVertex3f((float)toTransform.translation().x(), (float)toTransform.translation().y(), 0.f);
 +          glEnd();
 +      }
-+      //glGetFloatv(GL_LINE_WIDTH, &(float)_triangleZ->value());
 +      if (_triangleZ->value() != 0) {
 +          glLineWidth((float)_triangleZ->value());
 +          glColor3f(LANDMARK_EDGE_COLOR);
 +          glBegin(GL_LINES);
-+#ifndef UseCache
-+          for (int i = 0; i < e->num_prox_pairs(); i++) {
-+              glVertex3f((float)e->from_gr_prox(i).x(), (float)e->from_gr_prox(i).y(), 0.f);
-+              glVertex3f((float)e->to_gr_prox(i).x(), (float)e->to_gr_prox(i).y(), 0.f);
-+          }
-+#else
-+          for (int i = 0; i < e->f()->numPP() && i < e->t()->numPP() && i < prox_maxN; i++) {
-+              glVertex3f((float)e->f()->q(i).x(), (float)e->f()->q(i).y(), 0.f);
-+              glVertex3f((float)e->t()->q(i).x(), (float)e->t()->q(i).y(), 0.f);
-+          }
-+#endif
++          glVertex3f((float)fromProximity.x(), (float)fromProximity.y(), 0.f);
++          glVertex3f((float)toProximity.x(), (float)toProximity.y(), 0.f);
++          glEnd();
 +      }
-+      glEnd();
++      glPopAttrib();
++      return this;
++  }
++
++  EdgeMEstProxDrawAction::EdgeMEstProxDrawAction()
++      : DrawAction(typeid(EdgeMEstProx).name()), _triangleY(nullptr), _triangleZ(nullptr) {}
++
++  bool EdgeMEstProxDrawAction::refreshPropertyPtrs(HyperGraphElementAction::Parameters* params_) {
++      if (!DrawAction::refreshPropertyPtrs(params_))
++          return false;
++      if (_previousParams) {
++          _triangleY = _previousParams->makeProperty<FloatProperty>(_typeName + "::N_Edge_Width", 3.0f);
++          _triangleZ = _previousParams->makeProperty<FloatProperty>(_typeName + "::P_Edge_Width", 2.0f);
++      }
++      else {
++          _triangleY = 0;
++          _triangleZ = 0;
++      }
++      return true;
++  }
++
++  HyperGraphElementAction* EdgeMEstProxDrawAction::operator()(HyperGraph::HyperGraphElement* element,
++      HyperGraphElementAction::Parameters* params_) {
++      if (typeid(*element).name() != _typeName)
++          return nullptr;
++
++      refreshPropertyPtrs(params_);
++      if (!_previousParams)
++          return this;
++
++      if (_show && !_show->value())
++          return this;
++
++      EdgeMEstProx* e = static_cast<EdgeMEstProx*>(element);
++      VertexProx* from = static_cast<VertexProx*>(e->vertex(0));
++      VertexProx* to = static_cast<VertexProx*>(e->vertex(1));
++      if (!from && !to)
++          return this;
++      SE2 fromTransform;
++      SE2 toTransform;
++      Vector2 fromProximity;
++      Vector2 toProximity;
++      glPushAttrib(GL_ENABLE_BIT | GL_LIGHTING | GL_COLOR);
++      glDisable(GL_LIGHTING);
++      fromTransform = from->estimate();
++      toTransform = to->estimate();
++      fromProximity = e->fc()->q(e->fp());
++      toProximity = e->tc()->q(e->tp());
++      if (_triangleY->value() != 0) {
++          glLineWidth((float)_triangleY->value());
++          glColor3f(POSE_EDGE_COLOR);
++          glBegin(GL_LINES);
++          glVertex3f((float)fromTransform.translation().x(), (float)fromTransform.translation().y(), 0.f);
++          glVertex3f((float)toTransform.translation().x(), (float)toTransform.translation().y(), 0.f);
++          glEnd();
++      }
++      if (_triangleZ->value() != 0) {
++          glLineWidth((float)_triangleZ->value());
++          glColor3f(LANDMARK_EDGE_COLOR);
++          glBegin(GL_LINES);
++          glVertex3f((float)fromProximity.x(), (float)fromProximity.y(), 0.f);
++          glVertex3f((float)toProximity.x(), (float)toProximity.y(), 0.f);
++          glEnd();
++      }
 +      glPopAttrib();
 +      return this;
 +  }
@@ -1332,40 +1322,32 @@ index 00000000..c287f40c
 +}
 diff --git a/g2o/types/slam2d/edge_prox.h b/g2o/types/slam2d/edge_prox.h
 new file mode 100644
-index 00000000..0b875698
+index 00000000..2f0dcfcd
 --- /dev/null
 +++ b/g2o/types/slam2d/edge_prox.h
-@@ -0,0 +1,112 @@
+@@ -0,0 +1,117 @@
 +// This library was made by Kotaro Wada. (211t373t[at]stu.kobe-u.ac.jp)
 +
 +#ifndef G2O_EDGE_SE2_PROXIMITY_H_
 +#define G2O_EDGE_SE2_PROXIMITY_H_
 +
 +//#define NUMERIC_JACOBIAN_TWO_D_TYPES
-+#define UseCache
 +
 +#include "g2o/core/base_binary_edge.h"
 +#include "vertex_prox.h"
++#include "cache_prox.h"
 +#include "g2o_types_slam2d_api.h"
-+
-+#ifdef UseCache
-+#include "parameter_prox.h"
-+#endif
-+
-+#ifndef prox_maxN
-+#define prox_maxN 10
-+#endif
++#include "g2o/core/robust_kernel_impl.h"
++#include "g2o/core/robust_kernel_factory.h"
 +
 +namespace g2o {
 +
-+    class G2O_TYPES_SLAM2D_API EdgeProx : public BaseBinaryEdge < 2 * prox_maxN, std::array<int, 2 * prox_maxN>, VertexProx, VertexProx > {
++class G2O_TYPES_SLAM2D_API EdgeProx : public BaseBinaryEdge < 2, std::array<int, 2>, VertexProx, VertexProx > {
 +  public:
 +      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 +          EdgeProx();
 +
-+#ifdef UseCache
 +      virtual bool resolveCaches();
-+#endif
 +
 +      virtual bool read(std::istream& is);
 +      virtual bool write(std::ostream& os) const;
@@ -1375,30 +1357,30 @@ index 00000000..0b875698
 +      virtual void linearizeOplus();
 +#endif
 +
-+      virtual void setMeasurement(const std::array<int, 2 * prox_maxN> m) {
-+          for (int i = 0; i < 2 * prox_maxN; i++)
++      virtual void setMeasurement(const std::array<int, 2> m) {
++          for (int i = 0; i < 2; i++)
 +              _measurement[i] = m[i];
 +      }
 +
-+      virtual void setMeasurement(const int m[2 * prox_maxN]) {
-+          for (int i = 0; i < 2 * prox_maxN; i++)
++      virtual void setMeasurement(const int m[2]) {
++          for (int i = 0; i < 2; i++)
 +              _measurement[i] = m[i];
 +      }
 +
 +      virtual bool setMeasurementData(const int* d) {
-+          for(int i = 0; i < 2 * prox_maxN; i++)
++          for(int i = 0; i < 2; i++)
 +              _measurement[i] = d[i];
 +          return true;
 +      }
 +
 +      virtual bool setMeasurementData(const int d) {
-+          for (int i = 0; i < 2 * prox_maxN; i++)
++          for (int i = 0; i < 2; i++)
 +              _measurement[i] = d;
 +          return true;
 +      }
 +
-+      virtual bool getMeasurementData(int d[2 * prox_maxN]) const {
-+          for (int i = 0; i < 2 * prox_maxN; i++)
++      virtual bool getMeasurementData(int d[2]) const {
++          for (int i = 0; i < 2; i++)
 +              d[i] = _measurement[i];
 +          return true;
 +      }
@@ -1414,24 +1396,27 @@ index 00000000..0b875698
 +
 +      virtual void initialEstimate(const OptimizableGraph::VertexSet& from, OptimizableGraph::Vertex* to);
 +
-+#ifndef UseCache
-+      virtual inline Vector2 from_prox(int i) const;
-+      virtual inline Vector2 to_prox(int i) const;
-+      virtual inline Vector2 from_gr_prox(int i) const;
-+      virtual inline Vector2 to_gr_prox(int i) const;
-+      virtual inline int num_prox_pairs() const { return _num_prox_pairs; };
-+#else
-+      const virtual inline CacheProximity* f() const { return _cacheFrom; };
-+      const virtual inline CacheProximity* t() const { return _cacheTo; };
-+#endif
++      const virtual inline int fp() const { return _measurement[0]; };
++      const virtual inline int tp() const { return _measurement[1]; };
++      const virtual inline CacheProximity* fc() const { return _cacheFrom; };
++      const virtual inline CacheProximity* tc() const { return _cacheTo; };
 +
-+private:
-+    std::array<std::array<int, prox_maxN>, 2> _prox_pairs;
-+    int _num_prox_pairs;
-+#ifdef UseCache
++protected:
 +    CacheProximity* _cacheFrom, * _cacheTo;
-+#endif
++};
 +
++class G2O_TYPES_SLAM2D_API EdgeMEstProx : public EdgeProx {
++public:
++    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
++        EdgeMEstProx() : EdgeProx(), _strRobustKernel(){};
++
++    virtual void setStrRobustKernel(const std::string& strRobustKernel) { _strRobustKernel = strRobustKernel; };
++
++    virtual bool read(std::istream& is);
++    virtual bool write(std::ostream& os) const;
++
++protected:
++    std::string _strRobustKernel;
 +};
 +
 +#ifdef G2O_HAVE_OPENGL
@@ -1442,12 +1427,60 @@ index 00000000..0b875698
 +          HyperGraphElementAction::Parameters* params_);
 +  protected:
 +      virtual bool refreshPropertyPtrs(HyperGraphElementAction::Parameters* params_);
-+      FloatProperty* _triangleX, * _triangleY, * _triangleZ;
++      FloatProperty* _triangleY, * _triangleZ;
++  };
++
++  class G2O_TYPES_SLAM2D_API EdgeMEstProxDrawAction : public DrawAction {
++  public:
++      EdgeMEstProxDrawAction();
++      virtual HyperGraphElementAction* operator()(HyperGraph::HyperGraphElement* element,
++          HyperGraphElementAction::Parameters* params_);
++  protected:
++      virtual bool refreshPropertyPtrs(HyperGraphElementAction::Parameters* params_);
++      FloatProperty* _triangleY, * _triangleZ;
 +  };
 +#endif
 +
 +}
 +#endif
+diff --git a/g2o/types/slam2d/edge_se2.cpp b/g2o/types/slam2d/edge_se2.cpp
+index 0a06459a..ec28dae9 100644
+--- a/g2o/types/slam2d/edge_se2.cpp
++++ b/g2o/types/slam2d/edge_se2.cpp
+@@ -63,23 +63,19 @@ void EdgeSE2::initialEstimate(const OptimizableGraph::VertexSet& from,
+ void EdgeSE2::linearizeOplus() {
+   const VertexSE2* vi = static_cast<const VertexSE2*>(_vertices[0]);
+   const VertexSE2* vj = static_cast<const VertexSE2*>(_vertices[1]);
+-  number_t thetai = vi->estimate().rotation().angle();
+-
++  number_t thetai = vi->estimate().rotation().angle(), 
++      thetaj = vj->estimate().rotation().angle(), 
++      thetam = measurement().rotation().angle();
+   Vector2 dt = vj->estimate().translation() - vi->estimate().translation();
+-  number_t si = std::sin(thetai), ci = std::cos(thetai);
+-
+-  _jacobianOplusXi << -ci, -si, -si * dt.x() + ci * dt.y(), si, -ci,
+-      -ci * dt.x() - si * dt.y(), 0, 0, -1;
+ 
+-  _jacobianOplusXj << ci, si, 0, -si, ci, 0, 0, 0, 1;
++  _jacobianOplusXi.setZero();
++  _jacobianOplusXi.block<2, 2>(0, 0) = -Matrix2(Rotation2D(-thetam));
++  _jacobianOplusXi.block<2, 1>(0, 2) = Matrix2(Rotation2D(-thetai - thetam - M_PI_2)) * dt;
++  _jacobianOplusXi(2, 2) = -1.;
+ 
+-  const SE2& rmean = _inverseMeasurement;
+-  Matrix3 z;
+-  z.block<2, 2>(0, 0) = rmean.rotation().toRotationMatrix();
+-  z.col(2) << cst(0.), cst(0.), cst(1.);
+-  z.row(2).head<2>() << cst(0.), cst(0.);
+-  _jacobianOplusXi = z * _jacobianOplusXi;
+-  _jacobianOplusXj = z * _jacobianOplusXj;
++  _jacobianOplusXj.setZero();
++  _jacobianOplusXj.block<2, 2>(0, 0) = Matrix2(Rotation2D(thetaj - thetai - thetam));
++  _jacobianOplusXj(2, 2) = 1.;
+ }
+ #endif
+ 
 diff --git a/g2o/types/slam2d/edge_se2.h b/g2o/types/slam2d/edge_se2.h
 index afdf8e4e..ae47f01a 100644
 --- a/g2o/types/slam2d/edge_se2.h
@@ -1471,14 +1504,15 @@ index afdf8e4e..ae47f01a 100644
  
 diff --git a/g2o/types/slam2d/edge_switch_prox.cpp b/g2o/types/slam2d/edge_switch_prox.cpp
 new file mode 100644
-index 00000000..77791749
+index 00000000..058ae9ca
 --- /dev/null
 +++ b/g2o/types/slam2d/edge_switch_prox.cpp
-@@ -0,0 +1,311 @@
+@@ -0,0 +1,199 @@
 +// This class was made by Kotaro Wada. (211t373t[at]stu.kobe-u.ac.jp)
 +
 +#include "edge_switch_prox.h"
 +#include <iostream>
++#include <iomanip>
 +
 +#ifdef G2O_HAVE_OPENGL
 +#include "g2o/stuff/opengl_wrapper.h"
@@ -1491,68 +1525,49 @@ index 00000000..77791749
 +
 +  // point to camera projection, monocular
 +  EdgeSwitchProx::EdgeSwitchProx()
-+      : BaseTernaryEdge < 3 * prox_maxN, std::array<int, 2 * prox_maxN>, VertexProx, VertexProx, VertexSwitchProxPair >(), _num_prox_pairs(0), _prox_pairs(), info(1.) {
-+      memset(_prox_pairs[0], 0, prox_maxN);
-+      memset(_prox_pairs[1], 0, prox_maxN);
++      : BaseTernaryEdge < 3, std::array<int, 2>, VertexProx, VertexProx, VertexSwitch >() {
++      _cacheFrom = 0;
++      _cacheTo = 0;
 +    information().setZero();
-+    _ProxPairWeightInfo = 0;
-+    resizeParameters(1);
-+    installParameter(_ProxPairWeightInfo, 0);
++  }
++
++  bool EdgeSwitchProx::resolveCaches() {
++      ParameterVector pv(0);
++      resolveCache(_cacheFrom, (OptimizableGraph::Vertex*)_vertices[0],
++          "CACHE_PROX", pv);
++      resolveCache(_cacheTo, (OptimizableGraph::Vertex*)_vertices[1],
++          "CACHE_PROX", pv);
++      return (_cacheFrom && _cacheTo);
 +  }
 +
 +  bool EdgeSwitchProx::read(std::istream& is) {
-+    // measured keypoint
 +    setMeasurementData(0);
 +    if (is.bad()) return false;
-+    //readInformationMatrix(is);
-+    //  we overwrite the information matrix in case of read errors
-+    //if (is.bad()) information().setIdentity();
 +    information().setZero();
-+    _num_prox_pairs = 0;
-+    if (!setParameterId(0, 0))
-+        return false;
-+    resolveParameters();
-+    info = _ProxPairWeightInfo->Info();
-+    for(int i = 0; i < prox_maxN; i++)
-+        information()(2 * prox_maxN + i, 2 * prox_maxN + i) = info;
 +
-+    int n;
-+    is >> n;
-+    for (int i = 0; i < n && i < prox_maxN; i++) {
-+        is >> _prox_pairs[0][i] >> _prox_pairs[1][i];
-+        double info;
-+        is >> info;
-+        information()(2*i, 2*i) = info;
-+        information()(2*i+1, 2*i+1) = info;
-+        if (is.bad()) return false;
-+        _num_prox_pairs = i + 1;
-+    }
++    is >> _measurement[0] >> _measurement[1];
++    double info, sinfo;
++    is >> info >> sinfo;
++    information()(0, 0) = info;
++    information()(1, 1) = info;
++    information()(2, 2) = sinfo;
++    if (is.bad()) return false;
 +    return true;
 +  }
 +
 +  bool EdgeSwitchProx::write(std::ostream& os) const {
-+      int n = _num_prox_pairs;
-+      os << _num_prox_pairs << " ";
-+      for (int i = 0; i < _num_prox_pairs && i < prox_maxN; i++)
-+          os << _prox_pairs[0][i] << " " << _prox_pairs[1][i] << " " << information()(2*i, 2*i) << " ";
++      os << _measurement[0] << " " << _measurement[1] << " "
++          << information()(0, 0) << " " << information()(2, 2) << " ";
 +      return true;
 +  }
 +
 +  void EdgeSwitchProx::computeError() {
-+      const SE2 vi = dynamic_cast<VertexProx*>(_vertices[0])->estimate();
-+      const SE2 vj = dynamic_cast<VertexProx*>(_vertices[1])->estimate();
-+      //const std::array<number_t, prox_maxN> vk = sigmoid_est();
-+      const std::array<number_t, prox_maxN> vk = dynamic_cast<VertexSwitchProxPair*>(_vertices[2])->estimate();
-+      for (int k = 0; k < _num_prox_pairs && k < prox_maxN; k++) {
-+          const Vector2 ri = from_prox(k),  rj = to_prox(k), qi = from_gr_prox(k), qj = to_gr_prox(k);
-+          if (ri == Vector2() || rj == Vector2() || qi == Vector2() || qj == Vector2()) continue;
-+          const Vector2 ei = vi.rotation() * ri, ej = vj.rotation() * rj;
-+          const number_t li = cst((ei / ri.norm()).dot(qj - qi)), lj = cst((ej / rj.norm()).dot(qi - qj));
-+          _error.block<2, 1>(2 * k, 0) << li * vk[k], lj * vk[k];
-+      }
-+      for (int k = 0; k < prox_maxN; k++)
-+          _error(2 * prox_maxN + k) = cst(1.) - vk[k];
-+          //_error(2 * prox_maxN + k) = cst(1.) - sqrt(fabs(vk[k]));
++      _error.setZero();
++      const number_t vk = dynamic_cast<VertexSwitch*>(_vertices[2])->estimate();
++      const int fi = fp(), ti = tp();
++      _error(0, 0) = vk * fc()->e(fi).dot(tc()->q(ti) - fc()->q(fi));
++      _error(1, 0) = vk * tc()->e(ti).dot(fc()->q(fi) - tc()->q(ti));
++      _error(2, 0) = cst(1.) - vk;
 +  }
 +
 +#ifndef NUMERIC_JACOBIAN_TWO_D_TYPES
@@ -1562,150 +1577,82 @@ index 00000000..77791749
 +      _jacobianOplusXk.setZero();
 +      const SE2 vi = dynamic_cast<VertexProx*>(_vertices[0])->estimate();
 +      const SE2 vj = dynamic_cast<VertexProx*>(_vertices[1])->estimate();
-+      //const std::array<number_t, prox_maxN> vk = sigmoid_est();
-+      //const std::array<number_t, prox_maxN> dvk = def_sig_est();
-+      const std::array<number_t, prox_maxN> vk = dynamic_cast<VertexSwitchProxPair*>(_vertices[2])->estimate();
-+      const Vector2 dt = vj.translation() - vi.translation();
++      const number_t vk = dynamic_cast<VertexSwitch*>(_vertices[2])->estimate();
 +      const Matrix2 Ri = vi.rotation().toRotationMatrix(),
-+          Rj = vj.rotation().toRotationMatrix(),
-+          dR = Ri.transpose() * Rj;
-+      for (int k = 0; k < _num_prox_pairs && k < prox_maxN; k++) {
-+          const Vector2 ri = from_prox(k), rj = to_prox(k), qi = from_gr_prox(k), qj = to_gr_prox(k);
-+          if (ri == Vector2() || rj == Vector2() || qi == Vector2() || qj == Vector2()) continue;
-+          const number_t ni = 1. / ri.norm(), nj = 1. / rj.norm();
-+          const Vector2 ei = vi.rotation() * ri, ej = vj.rotation() * rj;
-+          const number_t li = cst((ei * ni).dot(qj - qi)), lj = cst((ej * nj).dot(qi - qj));
-+          Vector2 z;
-+
-+          _jacobianOplusXi.block<1, 2>(2*k, 0) = -ri;
-+          _jacobianOplusXj.block<1, 2>(2*k, 0) = dR.transpose() * ri;
-+          z = dR * rj + Ri.transpose() * dt;
-+          _jacobianOplusXi(2*k, 2) = ri.x() * z.y() - ri.y() * z.x();
-+          z = dR * rj;
-+          _jacobianOplusXj(2*k, 2) = -ri.x() * z.y() + ri.y() * z.x();
-+          _jacobianOplusXi.block<1, 3>(2*k, 0) = _jacobianOplusXi.block<1, 3>(2*k, 0) * ni * vk[k];
-+          _jacobianOplusXj.block<1, 3>(2*k, 0) = _jacobianOplusXj.block<1, 3>(2*k, 0) * ni * vk[k];
-+          _jacobianOplusXj.block<1, 2>(2*k+1, 0) = -rj;
-+          _jacobianOplusXi.block<1, 2>(2*k+1, 0) = dR * rj;
-+          z = dR.transpose() * ri - Rj.transpose() * dt;
-+          _jacobianOplusXj(2*k+1, 2) = rj.x() * z.y() - rj.y() * z.x();
-+          z = dR.transpose() * ri;
-+          _jacobianOplusXi(2*k+1, 2) = -rj.x() * z.y() + rj.y() * z.x();
-+          _jacobianOplusXj.block<1, 3>(2*k+1, 0) = _jacobianOplusXj.block<1, 3>(2*k+1, 0) * nj * vk[k];
-+          _jacobianOplusXi.block<1, 3>(2*k+1, 0) = _jacobianOplusXi.block<1, 3>(2*k+1, 0) * nj * vk[k];
-+          _jacobianOplusXk.block<2, 1>(2 * k, k) << li, lj;
-+          //_jacobianOplusXk.block<2, 1>(2 * k, k) << li * dvk[k], lj * dvk[k];
-+      }
-+      for (int k = 0; k < prox_maxN; k++)
-+          _jacobianOplusXk(2 * prox_maxN + k, k) = cst(-1.);
-+          //_jacobianOplusXk(2 * prox_maxN + k, k) = -sign(vk[k]) / (2. * sqrt(fabs(vk[k])));
-+          //_jacobianOplusXk(2 * prox_maxN + k, k) = -dvk[k];
-+
-+      /*
-+      cout << this->id() << " : " << _vertices[0]->id() << endl;
-+      for (int i = 0; i < 20; i++) {
-+          if (_jacobianOplusXi.col(0)[i] == 0.) break;
-+          cout << _jacobianOplusXi.col(0)[i] << ", ";
-+      }
-+      cout << endl;
-+      for (int i = 0; i < 20; i++) {
-+          if (_jacobianOplusXi.col(1)[i] == 0.) break;
-+          cout << _jacobianOplusXi.col(1)[i] << ", ";
-+      }
-+      cout << endl;
-+      for (int i = 0; i < 20; i++) {
-+          if (_jacobianOplusXi.col(2)[i] == 0.) break;
-+          cout << _jacobianOplusXi.col(2)[i] << ", ";
-+      }
-+      cout << endl << endl;
-+      cout << this->id() << " : " << _vertices[1]->id() << endl;
-+      for (int i = 0; i < 20; i++) {
-+          if (_jacobianOplusXj.col(0)[i] == 0.) break;
-+          cout << _jacobianOplusXj.col(0)[i] << ", ";
-+      }
-+      cout << endl;
-+      for (int i = 0; i < 20; i++) {
-+          if (_jacobianOplusXj.col(1)[i] == 0.) break;
-+          cout << _jacobianOplusXj.col(1)[i] << ", ";
-+      }
-+      cout << endl;
-+      for (int i = 0; i < 20; i++) {
-+          if (_jacobianOplusXj.col(2)[i] == 0.) break;
-+          cout << _jacobianOplusXj.col(2)[i] << ", ";
-+      }
-+      cout << endl << endl;
-+      */
-+  }
++          Rj = vj.rotation().toRotationMatrix();
++      const int fi = fp(), ti = tp();
++      _jacobianOplusXi.block<1, 2>(0, 0) = -vk * fc()->u(fi);
++      _jacobianOplusXi(0, 2) = vk * (fc()->de(fi).dot(tc()->q(ti) - fc()->q(fi)) - fc()->e(fi).dot(fc()->dq(fi)));
++      _jacobianOplusXi.block<1, 2>(1, 0) = vk * Ri.transpose() * tc()->e(ti);
++      _jacobianOplusXi(1, 2) = vk * tc()->e(ti).dot(fc()->dq(fi));
++      _jacobianOplusXj.block<1, 2>(0, 0) = vk * Rj.transpose() * fc()->e(fi);
++      _jacobianOplusXj(0, 2) = vk * fc()->e(fi).dot(tc()->dq(ti));
++      _jacobianOplusXj.block<1, 2>(1, 0) = -vk * tc()->u(ti);
++      _jacobianOplusXj(1, 2) = vk * (tc()->de(ti).dot(fc()->q(fi) - tc()->q(ti)) - tc()->e(ti).dot(tc()->dq(ti)));
++      _jacobianOplusXk.block<2, 1>(0, 0) << cst(fc()->e(fi).dot(tc()->q(ti) - fc()->q(fi))), cst(tc()->e(ti).dot(fc()->q(fi) - tc()->q(ti)));
++      _jacobianOplusXk(2, 0) = -cst(1.);  }
 +#endif
 +
 +  bool EdgeSwitchProx::setMeasurementFromState(){
-+      /*
-+      VertexSE2Proximity* from_node = static_cast<VertexSE2Proximity*>(_vertices[0]);
-+      VertexSE2Proximity* to_node = static_cast<VertexSE2Proximity*>(_vertices[1]);
-+      
-+      _measurement = from_node->estimate().inverse() * to_node->estimate();
-+      */
++      //VertexSE2Proximity* from_node = static_cast<VertexSE2Proximity*>(_vertices[0]);
++      //VertexSE2Proximity* to_node = static_cast<VertexSE2Proximity*>(_vertices[1]);
++      //_measurement = from_node->estimate().inverse() * to_node->estimate();
 +    return true;
 +  }
 +
 +
 +  void EdgeSwitchProx::initialEstimate(const OptimizableGraph::VertexSet& from, OptimizableGraph::Vertex* /*to_*/)
 +  {
-+    /*
-+    VertexSE2Proximity* from_node = dynamic_cast<VertexSE2Proximity*>(_vertices[0]);
-+    VertexSE2Proximity* to_node = dynamic_cast<VertexSE2Proximity*>(_vertices[1]);
-+    if (from.count(from_node) > 0)
-+        to_node->setEstimate(from_node->estimate() * _measurement);
-+    else
-+        from_node->setEstimate(to_node->estimate() * _measurement.inverse());
-+    */
++    //VertexSE2Proximity* from_node = dynamic_cast<VertexSE2Proximity*>(_vertices[0]);
++    //VertexSE2Proximity* to_node = dynamic_cast<VertexSE2Proximity*>(_vertices[1]);
++    //if (from.count(from_node) > 0)
++    //    to_node->setEstimate(from_node->estimate() * _measurement);
++    //else
++    //    from_node->setEstimate(to_node->estimate() * _measurement.inverse());
 +  }
 +
-+  inline Vector2 EdgeSwitchProx::from_prox(int i) const {
-+      if (0 <= i && i < _num_prox_pairs)
-+          return dynamic_cast<VertexProx*>(_vertices[0])->proximity(_prox_pairs[0][i]);
-+      cerr << "out of range" << endl;
-+      return Vector2();
-+  };
-+  inline Vector2 EdgeSwitchProx::to_prox(int i) const {
-+      if (0 <= i && i < _num_prox_pairs)
-+          return dynamic_cast<VertexProx*>(_vertices[1])->proximity(_prox_pairs[1][i]);
-+      cerr << "out of range" << endl;
-+      return Vector2();
-+  };
-+  inline Vector2 EdgeSwitchProx::from_gr_prox(int i) const {
-+      if (0 <= i && i < _num_prox_pairs) {
-+          Vector2 fp = from_prox(i);
-+          if (fp == Vector2()) return Vector2();
-+          return (dynamic_cast<VertexProx*>(_vertices[0])->estimate() * fp);
-+      }
-+      cerr << "out of range" << endl;
-+      return Vector2();
-+  };
-+  inline Vector2 EdgeSwitchProx::to_gr_prox(int i) const {
-+      if (0 <= i && i < _num_prox_pairs) {
-+          Vector2 tp = to_prox(i);
-+          if (tp == Vector2()) return Vector2();
-+          return (dynamic_cast<VertexProx*>(_vertices[1])->estimate() * tp);
-+      }
-+      cerr << "out of range" << endl;
-+      return Vector2();
-+  };
++  // point to camera projection, monocular
++  EdgeSwitchProxSIP::EdgeSwitchProxSIP()
++      : EdgeSwitchProx() {
++      _ProxPairWeightInfo = 0;
++      resizeParameters(1);
++      installParameter(_ProxPairWeightInfo, 0);
++  }
++
++  bool EdgeSwitchProxSIP::read(std::istream& is) {
++      setMeasurementData(0);
++      if (is.bad()) return false;
++      information().setZero();
++      if (!setParameterId(0, 0))
++          return false;
++
++      is >> _measurement[0] >> _measurement[1];
++      double info;
++      is >> info;
++      information()(0, 0) = info;
++      information()(1, 1) = info;
++      information()(2, 2) = _ProxPairWeightInfo->Info();
++      if (is.bad()) return false;
++      return true;
++  }
++
++  bool EdgeSwitchProxSIP::write(std::ostream& os) const {
++      os << _measurement[0] << " " << _measurement[1] << " " << information()(0, 0) << " ";
++      return true;
++  }
 +
 +#ifdef G2O_HAVE_OPENGL
 +  EdgeSwitchProxDrawAction::EdgeSwitchProxDrawAction()
-+      : DrawAction(typeid(EdgeSwitchProx).name()), _triangleX(nullptr), _triangleY(nullptr), _triangleZ(nullptr) {}
++      : DrawAction(typeid(EdgeSwitchProx).name()), _triangleY(nullptr), _triangleZ(nullptr) {}
 +
 +  bool EdgeSwitchProxDrawAction::refreshPropertyPtrs(HyperGraphElementAction::Parameters* params_) {
 +      if (!DrawAction::refreshPropertyPtrs(params_))
 +          return false;
 +      if (_previousParams) {
-+          _triangleX = _previousParams->makeProperty<FloatProperty>(_typeName + "::N_Edge_Arrow_Length", .0f);
 +          _triangleY = _previousParams->makeProperty<FloatProperty>(_typeName + "::N_Edge_Width", 3.0f);
 +          _triangleZ = _previousParams->makeProperty<FloatProperty>(_typeName + "::P_Edge_Width", 2.0f);
 +      }
 +      else {
-+          _triangleX = 0;
 +          _triangleY = 0;
 +          _triangleZ = 0;
 +      }
@@ -1731,56 +1678,30 @@ index 00000000..77791749
 +          return this;
 +      SE2 fromTransform;
 +      SE2 toTransform;
++      Vector2 fromProximity;
++      Vector2 toProximity;
 +      glPushAttrib(GL_ENABLE_BIT | GL_LIGHTING | GL_COLOR);
 +      glDisable(GL_LIGHTING);
-+      /*
-+      if (!from) {
-+          glColor3f(POSE_EDGE_GHOST_COLOR);
-+          toTransform = to->estimate();
-+          fromTransform = to->estimate() * e->measurement().inverse();
-+          // DRAW THE FROM EDGE AS AN ARROW
-+          glPushMatrix();
-+          glTranslatef((float)fromTransform.translation().x(), (float)fromTransform.translation().y(), 0.f);
-+          glRotatef((float)RAD2DEG(fromTransform.rotation().angle()), 0.f, 0.f, 1.f);
-+          opengl::drawArrow2D((float)_triangleX->value(), (float)_triangleY->value(), (float)_triangleX->value() * .3f);
-+          glPopMatrix();
-+      }
-+      else if (!to) {
-+          glColor3f(POSE_EDGE_GHOST_COLOR);
-+          fromTransform = from->estimate();
-+          toTransform = from->estimate() * e->measurement();
-+          // DRAW THE TO EDGE AS AN ARROW
-+          glPushMatrix();
-+          glTranslatef(toTransform.translation().x(), toTransform.translation().y(), 0.f);
-+          glRotatef((float)RAD2DEG(toTransform.rotation().angle()), 0.f, 0.f, 1.f);
-+          opengl::drawArrow2D((float)_triangleX->value(), (float)_triangleY->value(), (float)_triangleX->value() * .3f);
-+          glPopMatrix();
-+      }
-+      */
-+      { //else {
-+          glColor3f(POSE_EDGE_COLOR);
-+          fromTransform = from->estimate();
-+          toTransform = to->estimate();
-+      }
-+      //glGetFloatv(GL_LINE_WIDTH, &(float)_triangleY->value());
++      fromTransform = from->estimate();
++      toTransform = to->estimate();
++      fromProximity = e->fc()->q(e->fp());
++      toProximity = e->tc()->q(e->tp());
 +      if (_triangleY->value() != 0) {
 +          glLineWidth((float)_triangleY->value());
++          glColor3f(POSE_EDGE_COLOR);
 +          glBegin(GL_LINES);
 +          glVertex3f((float)fromTransform.translation().x(), (float)fromTransform.translation().y(), 0.f);
 +          glVertex3f((float)toTransform.translation().x(), (float)toTransform.translation().y(), 0.f);
 +          glEnd();
 +      }
-+      //glGetFloatv(GL_LINE_WIDTH, &(float)_triangleZ->value());
 +      if (_triangleZ->value() != 0) {
 +          glLineWidth((float)_triangleZ->value());
 +          glColor3f(LANDMARK_EDGE_COLOR);
 +          glBegin(GL_LINES);
-+          for (int i = 0; i < e->num_prox_pairs(); i++) {
-+              glVertex3f((float)e->from_gr_prox(i).x(), (float)e->from_gr_prox(i).y(), 0.f);
-+              glVertex3f((float)e->to_gr_prox(i).x(), (float)e->to_gr_prox(i).y(), 0.f);
-+          }
++          glVertex3f((float)fromProximity.x(), (float)fromProximity.y(), 0.f);
++          glVertex3f((float)toProximity.x(), (float)toProximity.y(), 0.f);
++          glEnd();
 +      }
-+      glEnd();
 +      glPopAttrib();
 +      return this;
 +  }
@@ -1788,10 +1709,10 @@ index 00000000..77791749
 +}
 diff --git a/g2o/types/slam2d/edge_switch_prox.h b/g2o/types/slam2d/edge_switch_prox.h
 new file mode 100644
-index 00000000..d09a7956
+index 00000000..4a396017
 --- /dev/null
 +++ b/g2o/types/slam2d/edge_switch_prox.h
-@@ -0,0 +1,98 @@
+@@ -0,0 +1,104 @@
 +// This class was made by Kotaro Wada. (211t373t[at]stu.kobe-u.ac.jp)
 +
 +#ifndef G2O_EDGE_SWITCHING_PROX_H_
@@ -1801,21 +1722,19 @@ index 00000000..d09a7956
 +
 +#include "g2o/core/base_ternary_edge.h"
 +#include "vertex_prox.h"
-+#include "vertex_switch_pp.h"
++#include "vertex_switch.h"
++#include "cache_prox.h"
 +#include "parameter_switch_weight.h"
-+
-+//#include "vertex_se2.h"
 +#include "g2o_types_slam2d_api.h"
 +
-+#ifndef prox_maxN
-+#define prox_maxN 10
-+#endif
-+
 +namespace g2o {
-+    class G2O_TYPES_SLAM2D_API EdgeSwitchProx : public BaseTernaryEdge < 3 * prox_maxN, std::array<int, 2 * prox_maxN>, VertexProx, VertexProx, VertexSwitchProxPair > {
++    class G2O_TYPES_SLAM2D_API EdgeSwitchProx : public BaseTernaryEdge < 3, std::array<int, 2>, VertexProx, VertexProx, VertexSwitch > {
 +  public:
 +      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 +          EdgeSwitchProx();
++
++      virtual bool resolveCaches();
++
 +      virtual bool read(std::istream& is);
 +      virtual bool write(std::ostream& os) const;
 +
@@ -1824,30 +1743,30 @@ index 00000000..d09a7956
 +      virtual void linearizeOplus();
 +#endif
 +
-+      virtual void setMeasurement(const std::array<int, 2 * prox_maxN> m) {
-+          for (int i = 0; i < 2 * prox_maxN; i++)
++      virtual void setMeasurement(const std::array<int, 2> m) {
++          for (int i = 0; i < 2; i++)
 +              _measurement[i] = m[i];
 +      }
 +
-+      virtual void setMeasurement(const int m[2 * prox_maxN]) {
-+          for (int i = 0; i < 2 * prox_maxN; i++)
++      virtual void setMeasurement(const int m[2]) {
++          for (int i = 0; i < 2; i++)
 +              _measurement[i] = m[i];
 +      }
 +
 +      virtual bool setMeasurementData(const int* d) {
-+          for(int i = 0; i < 2 * prox_maxN; i++)
++          for(int i = 0; i < 2; i++)
 +              _measurement[i] = d[i];
 +          return true;
 +      }
 +
 +      virtual bool setMeasurementData(const int d) {
-+          for (int i = 0; i < 2 * prox_maxN; i++)
++          for (int i = 0; i < 2; i++)
 +              _measurement[i] = d;
 +          return true;
 +      }
 +
-+      virtual bool getMeasurementData(int d[2 * prox_maxN]) const {
-+          for (int i = 0; i < 2 * prox_maxN; i++)
++      virtual bool getMeasurementData(int d[2]) const {
++          for (int i = 0; i < 2; i++)
 +              d[i] = _measurement[i];
 +          return true;
 +      }
@@ -1863,18 +1782,26 @@ index 00000000..d09a7956
 +
 +      virtual void initialEstimate(const OptimizableGraph::VertexSet& from, OptimizableGraph::Vertex* to);
 +
-+      virtual inline Vector2 from_prox(int i) const;
-+      virtual inline Vector2 to_prox(int i) const;
-+      virtual inline Vector2 from_gr_prox(int i) const;
-+      virtual inline Vector2 to_gr_prox(int i) const;
-+      virtual inline int num_prox_pairs() const { return _num_prox_pairs; };
++      const virtual inline int fp() const { return _measurement[0]; };
++      const virtual inline int tp() const { return _measurement[1]; };
++      const virtual inline CacheProximity* fc() const { return _cacheFrom; };
++      const virtual inline CacheProximity* tc() const { return _cacheTo; };
 +
-+  private:
-+      int _prox_pairs[2][prox_maxN];
-+      int _num_prox_pairs;
-+      ParameterSwitchWeight* _ProxPairWeightInfo;
-+      number_t info;
++  protected:
++      CacheProximity* _cacheFrom, * _cacheTo;
 +  };
++
++    class G2O_TYPES_SLAM2D_API EdgeSwitchProxSIP : public EdgeSwitchProx {
++    public:
++        EIGEN_MAKE_ALIGNED_OPERATOR_NEW
++            EdgeSwitchProxSIP();
++
++        virtual bool read(std::istream& is);
++        virtual bool write(std::ostream& os) const;
++
++    private:
++        ParameterSwitchWeight* _ProxPairWeightInfo;
++    };
 +
 +#ifdef G2O_HAVE_OPENGL
 +  class G2O_TYPES_SLAM2D_API EdgeSwitchProxDrawAction : public DrawAction {
@@ -1884,7 +1811,7 @@ index 00000000..d09a7956
 +          HyperGraphElementAction::Parameters* params_);
 +  protected:
 +      virtual bool refreshPropertyPtrs(HyperGraphElementAction::Parameters* params_);
-+      FloatProperty* _triangleX, * _triangleY, * _triangleZ;
++      FloatProperty* _triangleY, * _triangleZ;
 +  };
 +#endif
 +
@@ -1892,10 +1819,10 @@ index 00000000..d09a7956
 +#endif
 diff --git a/g2o/types/slam2d/edge_switch_se2.cpp b/g2o/types/slam2d/edge_switch_se2.cpp
 new file mode 100644
-index 00000000..d5bd3188
+index 00000000..5f7a255b
 --- /dev/null
 +++ b/g2o/types/slam2d/edge_switch_se2.cpp
-@@ -0,0 +1,222 @@
+@@ -0,0 +1,228 @@
 +// g2o - General Graph Optimization
 +// Copyright (C) 2011 R. Kuemmerle, G. Grisetti, W. Burgard
 +// All rights reserved.
@@ -1932,12 +1859,7 @@ index 00000000..d5bd3188
 +namespace g2o {
 +
 +  EdgeSwitchSE2::EdgeSwitchSE2() :
-+      BaseTernaryEdge<4, SE2, VertexSE2, VertexSE2, VertexSwitch>(), info(1.)
-+  {
-+      _WeightInfo = 0;
-+      resizeParameters(1);
-+      installParameter(_WeightInfo, 0);
-+  }
++      BaseTernaryEdge<4, SE2, VertexSE2, VertexSE2, VertexSwitch>() {}
 +
 +  bool EdgeSwitchSE2::read(std::istream& is)
 +  {
@@ -1951,18 +1873,18 @@ index 00000000..d5bd3188
 +            is >> information()(i, j);
 +            if (i != j) information()(j, i) = information()(i, j);
 +        }
-+    if (!setParameterId(0, 0))
-+        return false;
-+    resolveParameters();
-+    info = _WeightInfo->Info();
-+    information()(3, 3) = info;
++    is >> information()(3, 3);
 +    return true;
 +  }
 +
 +  bool EdgeSwitchSE2::write(std::ostream& os) const
 +  {
 +    internal::writeVector(os, measurement().toVector());
-+    return writeInformationMatrix(os);
++    for (int i = 0; i < 3; ++i)
++        for (int j = i; j < 3; ++j)
++            os << information()(i, j) << " ";
++    os << information()(3, 3) << " ";
++    return true;
 +  }
 +
 +  void EdgeSwitchSE2::initialEstimate(const OptimizableGraph::VertexSet& from, OptimizableGraph::Vertex* /* to */)
@@ -1978,30 +1900,6 @@ index 00000000..d5bd3188
 +#ifndef NUMERIC_JACOBIAN_TWO_D_TYPES
 +  void EdgeSwitchSE2::linearizeOplus()
 +  {
-+    //const VertexSE2* vi = static_cast<const VertexSE2*>(_vertices[0]);
-+    //const VertexSE2* vj = static_cast<const VertexSE2*>(_vertices[1]);
-+    //number_t thetai = vi->estimate().rotation().angle();
-+
-+    //Vector2 dt = vj->estimate().translation() - vi->estimate().translation();
-+    //number_t si=std::sin(thetai), ci=std::cos(thetai);
-+
-+    //_jacobianOplusXi <<
-+    //    -ci, -si, -si*dt.x()+ci*dt.y(),
-+    //     si, -ci, -ci*dt.x()-si*dt.y(),
-+    //     0,  0,   -1;
-+
-+    //_jacobianOplusXj <<
-+    //     ci, si, 0,
-+    //    -si, ci, 0,
-+    //     0,  0,  1;
-+
-+    //const SE2& rmean = _inverseMeasurement;
-+    //Matrix3 z;
-+    //z.block<2, 2>(0, 0) = rmean.rotation().toRotationMatrix();
-+    //z.col(2) << cst(0.), cst(0.), cst(1.);
-+    //z.row(2).head<2>() << cst(0.), cst(0.);
-+    //_jacobianOplusXi = z * _jacobianOplusXi;
-+    //_jacobianOplusXj = z * _jacobianOplusXj;
 +      const VertexSE2* vi = static_cast<const VertexSE2*>(_vertices[0]);
 +      const VertexSE2* vj = static_cast<const VertexSE2*>(_vertices[1]);
 +      const VertexSwitch* s = static_cast<const VertexSwitch*>(_vertices[2]);
@@ -2022,6 +1920,41 @@ index 00000000..d5bd3188
 +      _jacobianOplusXk << delta.toVector(), -cst(1.);
 +  }
 +#endif
++
++  EdgeSwitchSE2SIP::EdgeSwitchSE2SIP() : EdgeSwitchSE2()
++  {
++      _WeightInfo = 0;
++      resizeParameters(1);
++      installParameter(_WeightInfo, 0);
++  }
++
++  bool EdgeSwitchSE2SIP::read(std::istream& is)
++  {
++      Vector3 p;
++      internal::readVector(is, p);
++      setMeasurement(SE2(p));
++      _inverseMeasurement = measurement().inverse();
++      information().setZero();
++      for (int i = 0; i < 3 && is.good(); ++i)
++          for (int j = i; j < 3 && is.good(); ++j) {
++              is >> information()(i, j);
++              if (i != j) information()(j, i) = information()(i, j);
++          }
++      if (!setParameterId(0, 0))
++          return false;
++      resolveParameters();
++      information()(3, 3) = _WeightInfo->Info();
++      return true;
++  }
++
++  bool EdgeSwitchSE2SIP::write(std::ostream& os) const
++  {
++      internal::writeVector(os, measurement().toVector());
++      for (int i = 0; i < 3; ++i)
++          for (int j = i; j < 3; ++j)
++              os << information()(i, j);
++      return true;
++  }
 +
 +  EdgeSwitchSE2WriteGnuplotAction::EdgeSwitchSE2WriteGnuplotAction(): WriteGnuplotAction(typeid(EdgeSwitchSE2).name()){}
 +
@@ -2120,10 +2053,10 @@ index 00000000..d5bd3188
 +} // end namespace
 diff --git a/g2o/types/slam2d/edge_switch_se2.h b/g2o/types/slam2d/edge_switch_se2.h
 new file mode 100644
-index 00000000..8afd5167
+index 00000000..4d0afffc
 --- /dev/null
 +++ b/g2o/types/slam2d/edge_switch_se2.h
-@@ -0,0 +1,127 @@
+@@ -0,0 +1,136 @@
 +// g2o - General Graph Optimization
 +// Copyright (C) 2011 R. Kuemmerle, G. Grisetti, W. Burgard
 +// All rights reserved.
@@ -2223,10 +2156,19 @@ index 00000000..8afd5167
 +#endif
 +    protected:
 +      SE2 _inverseMeasurement;
++  };
++
++  class G2O_TYPES_SLAM2D_API EdgeSwitchSE2SIP : public EdgeSwitchSE2
++  {
++  public:
++      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
++          EdgeSwitchSE2SIP();
++
++      virtual bool read(std::istream& is);
++      virtual bool write(std::ostream& os) const;
 +
 +  private:
 +      ParameterSwitchWeight* _WeightInfo;
-+      number_t info;
 +  };
 +
 +  class G2O_TYPES_SLAM2D_API EdgeSwitchSE2WriteGnuplotAction: public WriteGnuplotAction {
@@ -2796,177 +2738,6 @@ index 00000000..b163089a
 +
 +#endif
 \ No newline at end of file
-diff --git a/g2o/types/slam2d/parameter_prox.cpp b/g2o/types/slam2d/parameter_prox.cpp
-new file mode 100644
-index 00000000..fe2133a6
---- /dev/null
-+++ b/g2o/types/slam2d/parameter_prox.cpp
-@@ -0,0 +1,92 @@
-+// This library was made by Kotaro Wada. (211t373t[at]stu.kobe-u.ac.jp)
-+
-+#include "parameter_prox.h"
-+#include <iostream>
-+
-+#ifdef G2O_HAVE_OPENGL
-+#include "g2o/stuff/opengl_wrapper.h"
-+#include "g2o/stuff/opengl_primitives.h"
-+#endif
-+
-+namespace g2o {
-+
-+ParameterProximity::ParameterProximity() { setProx(); }
-+
-+void ParameterProximity::setProx(const std::array<Vector2, prox_maxN>& prox_) {
-+    _prox_points = prox_;
-+    _num_prox_points = _prox_points.size();
-+}
-+
-+bool ParameterProximity::read(std::istream& is) {
-+  _num_prox_points = 0;
-+  int n;
-+  is >> n;
-+  for (int i = 0; i < n && i < prox_maxN; i++) {
-+      bool state = internal::readVector(is, _prox_points[i]);
-+      if (state == false) return false;
-+      _num_prox_points++;
-+  }
-+  return true;
-+}
-+
-+bool ParameterProximity::write(std::ostream& os) const {
-+    os << _num_prox_points << " ";
-+    for (int i = 0; i < _num_prox_points && i < prox_maxN; i++) {
-+        bool state = internal::writeVector(os, _prox_points[i]);
-+        if (state == false) return false;
-+    }
-+    return true;
-+}
-+
-+CacheProximity::CacheProximity() : Cache(), 
-+    _loc_prox_points(), _abs_prox_points(), _num_prox_pairs(0){}
-+
-+bool CacheProximity::resolveDependencies() {
-+    return true;
-+}
-+
-+inline Vector2 CacheProximity::loc_prox(int i) const {
-+    if (0 <= i && i < numPP() && i < prox_maxN)
-+        return _loc_prox_points[i];
-+    std::cerr << "out of range" << std::endl;
-+    return Vector2();
-+};
-+inline Vector2 CacheProximity::abs_prox(int i) const {
-+    if (0 <= i && i < numPP() && i < prox_maxN)
-+        return _abs_prox_points[i];
-+    std::cerr << "out of range" << std::endl;
-+    return Vector2();
-+};
-+
-+void CacheProximity::updateImpl() {
-+  const VertexProx* v = static_cast<const VertexProx*>(vertex());
-+  _abs_prox_points.fill(Vector2());
-+  _diff_prox_points.fill(Vector2());
-+  _abs_normal_vecs.fill(Vector2());
-+  _diff_normal_vecs.fill(Vector2());
-+  Eigen::Rotation2Dd dR = Eigen::Rotation2Dd(v->estimate().rotation().angle() + 0.5 * M_PI);
-+  for (int i = 0; i < numPP() && i < prox_maxN; i++) {
-+      if (_loc_prox_points[i] != Vector2()) {
-+          _abs_prox_points[i] = v->estimate() * _loc_prox_points[i];
-+          _diff_prox_points[i] = dR * _loc_prox_points[i];
-+          _abs_normal_vecs[i] = v->estimate().rotation() * _loc_normal_vecs[i];
-+          _diff_normal_vecs[i] = dR * _loc_normal_vecs[i];
-+      }
-+  }
-+}
-+
-+bool CacheProximity::setLocalProx(const std::array<Vector2, prox_maxN>& loc_prox_points_) {
-+    _loc_prox_points.fill(Vector2());
-+    _loc_normal_vecs.fill(Vector2());
-+    for (int i = 0; i < prox_maxN; i++) {
-+        if (loc_prox_points_[i] == Vector2()) {
-+            _num_prox_pairs = i;
-+        }
-+        _loc_prox_points[i] = loc_prox_points_[i];
-+        _loc_normal_vecs[i] = loc_prox_points_[i] / loc_prox_points_[i].norm();;
-+    }
-+    updateImpl();
-+    return true;
-+}
-+
-+}
-diff --git a/g2o/types/slam2d/parameter_prox.h b/g2o/types/slam2d/parameter_prox.h
-new file mode 100644
-index 00000000..846b5936
---- /dev/null
-+++ b/g2o/types/slam2d/parameter_prox.h
-@@ -0,0 +1,67 @@
-+// This library was made by Kotaro Wada. (211t373t[at]stu.kobe-u.ac.jp)
-+
-+#ifndef G2O_PARAMETER_PROXIMITY_H_
-+#define G2O_PARAMETER_PROXIMITY_H_
-+
-+#include <cmath>
-+#include <vector>
-+
-+#include "g2o/core/cache.h"
-+#include "g2o_types_slam2d_api.h"
-+#include "vertex_prox.h"
-+
-+#ifndef prox_maxN
-+#define prox_maxN 10
-+#endif
-+
-+namespace g2o {
-+
-+class G2O_TYPES_SLAM2D_API ParameterProximity : public Parameter {
-+public:
-+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-+    ParameterProximity();
-+
-+    virtual bool read(std::istream& is);
-+    virtual bool write(std::ostream& os) const;
-+
-+    void setProx(const std::array<Vector2, prox_maxN>& prox_ = std::array<Vector2, prox_maxN>());
-+    inline const std::array<Vector2, prox_maxN>& prox_points() const { return _prox_points; }
-+    inline const int& numProx() const { return _num_prox_points; }
-+
-+protected:
-+    std::array<Vector2, prox_maxN> _prox_points;
-+    int _num_prox_points;
-+};
-+
-+class G2O_TYPES_SLAM2D_API CacheProximity : public Cache {
-+ public:
-+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-+  CacheProximity();
-+  virtual void updateImpl();
-+
-+  virtual inline Vector2 loc_prox(int i) const;
-+  virtual inline Vector2 abs_prox(int i) const;
-+  inline const int& numPP() const { return _num_prox_pairs; }
-+  inline const Vector2& r(int i) const { return _loc_prox_points[i]; }
-+  inline const Vector2& u(int i) const { return _loc_normal_vecs[i]; }
-+  inline const Vector2& q(int i) const { return _abs_prox_points[i]; }
-+  inline const Vector2& e(int i) const { return _abs_normal_vecs[i]; }
-+  inline const Vector2& dq(int i) const { return _diff_prox_points[i]; }
-+  inline const Vector2& de(int i) const { return _diff_normal_vecs[i]; }
-+  bool setLocalProx(const std::array<Vector2, prox_maxN> & loc_prox_points_);
-+
-+ protected:
-+     std::array<Vector2, prox_maxN> _loc_prox_points;
-+     std::array<Vector2, prox_maxN> _abs_prox_points;
-+     std::array<Vector2, prox_maxN> _diff_prox_points;
-+     std::array<Vector2, prox_maxN> _loc_normal_vecs;
-+     std::array<Vector2, prox_maxN> _abs_normal_vecs;
-+     std::array<Vector2, prox_maxN> _diff_normal_vecs;
-+     int _num_prox_pairs;
-+
-+ protected:
-+  virtual bool resolveDependencies();
-+};
-+
-+}
-+#endif
 diff --git a/g2o/types/slam2d/parameter_switch_weight.cpp b/g2o/types/slam2d/parameter_switch_weight.cpp
 new file mode 100644
 index 00000000..c8a8fb3d
@@ -3210,28 +2981,33 @@ index 41a1280f..1f5e205c 100644
    inline number_t operator[](int i) const {
      assert(i >= 0 && i < 3);
 diff --git a/g2o/types/slam2d/types_slam2d.cpp b/g2o/types/slam2d/types_slam2d.cpp
-index 532f5bd4..aad99fae 100644
+index 532f5bd4..1c432ffc 100644
 --- a/g2o/types/slam2d/types_slam2d.cpp
 +++ b/g2o/types/slam2d/types_slam2d.cpp
-@@ -37,7 +37,11 @@ G2O_REGISTER_TYPE_GROUP(slam2d);
+@@ -37,8 +37,12 @@ G2O_REGISTER_TYPE_GROUP(slam2d);
  
  G2O_REGISTER_TYPE(VERTEX_SE2, VertexSE2);
  G2O_REGISTER_TYPE(VERTEX_XY, VertexPointXY);
 +G2O_REGISTER_TYPE(VERTEX_PROX, VertexProx);                       //added by wada
 +G2O_REGISTER_TYPE(VERTEX_SWITCH, VertexSwitch);                   //added by wada
-+G2O_REGISTER_TYPE(VERTEX_SWITCH_PROX_PAIR, VertexSwitchProxPair); //added by wada
  G2O_REGISTER_TYPE(PARAMS_SE2OFFSET, ParameterSE2Offset);
 +G2O_REGISTER_TYPE(PARAMS_SWITCH_WEIGHT, ParameterSwitchWeight);   //added by wada
  G2O_REGISTER_TYPE(CACHE_SE2_OFFSET, CacheSE2Offset);
++G2O_REGISTER_TYPE(CACHE_PROX, CacheProximity);                    //added by wada
  G2O_REGISTER_TYPE(EDGE_PRIOR_SE2, EdgeSE2Prior);
  G2O_REGISTER_TYPE(EDGE_PRIOR_SE2_XY, EdgeSE2XYPrior);
-@@ -51,9 +55,13 @@ G2O_REGISTER_TYPE(EDGE_POINTXY, EdgePointXY);
+ G2O_REGISTER_TYPE(EDGE_SE2, EdgeSE2);
+@@ -51,9 +55,17 @@ G2O_REGISTER_TYPE(EDGE_POINTXY, EdgePointXY);
  G2O_REGISTER_TYPE(EDGE_SE2_TWOPOINTSXY, EdgeSE2TwoPointsXY);
  G2O_REGISTER_TYPE(EDGE_SE2_LOTSOFXY, EdgeSE2LotsOfXY);
  G2O_REGISTER_TYPE(EDGE_PRIOR_XY, EdgeXYPrior);
-+G2O_REGISTER_TYPE(EDGE_PROX, EdgeProx); //added by wada
-+G2O_REGISTER_TYPE(EDGE_SWITCH_SE2, EdgeSwitchSE2);                //added by wada
-+G2O_REGISTER_TYPE(EDGE_SWITCH_PROX, EdgeSwitchProx);              //added by wada
++G2O_REGISTER_TYPE(EDGE_PROX, EdgeProx);	                          //added by wada
++G2O_REGISTER_TYPE(EDGE_M_Est_PROX, EdgeMEstProx);	              //added by wada
++G2O_REGISTER_TYPE(EDGE_SWITCH_SE2, EdgeSwitchSE2SIP);             //added by wada
++G2O_REGISTER_TYPE(EDGE_SWITCH_PROX, EdgeSwitchProxSIP);           //added by wada
++G2O_REGISTER_TYPE(EDGE_EM_PROX, EdgeEMProx);			          //added by wada
++G2O_REGISTER_TYPE(EDGE_SWITCH_SE2_, EdgeSwitchSE2);             //added by wada
++G2O_REGISTER_TYPE(EDGE_SWITCH_PROX_, EdgeSwitchProx);           //added by wada
  
  G2O_REGISTER_ACTION(VertexSE2WriteGnuplotAction);
  G2O_REGISTER_ACTION(VertexPointXYWriteGnuplotAction);
@@ -3239,7 +3015,7 @@ index 532f5bd4..aad99fae 100644
  G2O_REGISTER_ACTION(EdgeSE2WriteGnuplotAction);
  G2O_REGISTER_ACTION(EdgeSE2PointXYWriteGnuplotAction);
  G2O_REGISTER_ACTION(EdgeSE2PointXYBearingWriteGnuplotAction);
-@@ -61,9 +69,12 @@ G2O_REGISTER_ACTION(EdgeSE2PointXYBearingWriteGnuplotAction);
+@@ -61,9 +73,14 @@ G2O_REGISTER_ACTION(EdgeSE2PointXYBearingWriteGnuplotAction);
  #ifdef G2O_HAVE_OPENGL
  G2O_REGISTER_ACTION(VertexSE2DrawAction);
  G2O_REGISTER_ACTION(VertexPointXYDrawAction);
@@ -3248,36 +3024,47 @@ index 532f5bd4..aad99fae 100644
  G2O_REGISTER_ACTION(EdgeSE2PointXYDrawAction);
  G2O_REGISTER_ACTION(EdgeSE2PointXYBearingDrawAction);
 +G2O_REGISTER_ACTION(EdgeProxDrawAction);                          //added by wada
++G2O_REGISTER_ACTION(EdgeMEstProxDrawAction);                      //added by wada
 +G2O_REGISTER_ACTION(EdgeSwitchProxDrawAction);                    //added by wada
++G2O_REGISTER_ACTION(EdgeEMProxDrawAction);                        //added by wada
  
  #endif
  }  // namespace g2o
 diff --git a/g2o/types/slam2d/types_slam2d.h b/g2o/types/slam2d/types_slam2d.h
-index 385f1cee..eb8dd88f 100644
+index 385f1cee..605d27e6 100644
 --- a/g2o/types/slam2d/types_slam2d.h
 +++ b/g2o/types/slam2d/types_slam2d.h
-@@ -39,9 +39,15 @@
+@@ -27,6 +27,7 @@
+ #ifndef G2O_TYPES_SLAM2D_
+ #define G2O_TYPES_SLAM2D_
+ 
++#include "cache_prox.h"				//added by wada
+ #include "edge_pointxy.h"
+ #include "edge_se2.h"
+ #include "edge_se2_lotsofxy.h"
+@@ -39,9 +40,16 @@
  #include "edge_se2_twopointsxy.h"
  #include "edge_se2_xyprior.h"
  #include "edge_xy_prior.h"
-+#include "edge_prox.h"        //added by wada
-+#include "edge_switch_prox.h" //added by wada
-+#include "edge_switch_se2.h"  //added by wada
++#include "edge_prox.h"               //added by wada
++#include "edge_switch_prox.h"        //added by wada
++#include "edge_em_prox.h"            //added by wada
++#include "edge_switch_se2.h"         //added by wada
  #include "g2o/config.h"
  #include "parameter_se2_offset.h"
++#include "parameter_switch_weight.h" //added by wada
  #include "vertex_point_xy.h"
  #include "vertex_se2.h"
-+#include "vertex_prox.h"      //added by wada
-+#include "vertex_switch_pp.h" //added by wada
-+#include "vertex_switch.h"    //added by wada
++#include "vertex_prox.h"             //added by wada
++#include "vertex_switch.h"           //added by wada
  
  #endif
 diff --git a/g2o/types/slam2d/vertex_prox.cpp b/g2o/types/slam2d/vertex_prox.cpp
 new file mode 100644
-index 00000000..8d9820f2
+index 00000000..d70ebb98
 --- /dev/null
 +++ b/g2o/types/slam2d/vertex_prox.cpp
-@@ -0,0 +1,160 @@
+@@ -0,0 +1,163 @@
 +// This library was made by Kotaro Wada. (211t373t[at]stu.kobe-u.ac.jp)
 +
 +#include <string>
@@ -3291,44 +3078,47 @@ index 00000000..8d9820f2
 +namespace g2o {
 +
 +  VertexProx::VertexProx() :
-+    BaseVertex<3, SE2>(), _num_prox(0){}
++    BaseVertex<3, SE2>(), _proximityParam(){}
 +
 +  void VertexProx::oplusImpl(const number_t* update)
 +  {
-+    //Vector2 t = _estimate.translation();
-+    //t += Eigen::Map<const Vector2>(update);
-+    //number_t angle = normalize_theta(_estimate.rotation().angle() + update[2]);
-+    //_estimate.setTranslation(t);
-+    //_estimate.setRotation(Rotation2D(angle));
 +    SE2 t = _estimate, dt = SE2();
 +    dt.setTranslation(Vector2(update[0], update[1]));
 +    dt.setRotation(Rotation2D(normalize_theta(update[2])));
 +    _estimate = t * dt;
 +  }
 +
++  bool VertexProx::setProximityParam(const std::vector<Vector2>& pp)
++  {
++      _proximityParam.clear();
++      for (const Vector2& _pp : pp)
++          _proximityParam.push_back(_pp);
++      return true;
++  }
++
 +  bool VertexProx::read(std::istream& is)
 +  {
 +    Vector3 p;
-+    bool state_p = internal::readVector(is, p);
++    bool state = internal::readVector(is, p);
 +    setEstimate(p);
-+    _num_prox = 0;
 +    int n;
 +    is >> n;
-+    for (int i = 0; i < n && i < prox_maxN; i++) {
-+        bool state_r = internal::readVector(is, *_proximityParam[i]);
++    _proximityParam.resize(n);
++    std::vector<Vector2> pp(n);
++    for (Vector2& r : pp) {
++        bool state_r = internal::readVector(is, r);
 +        if (state_r == false) return false;
-+        _num_prox = i + 1;
 +    }
-+    _num_prox = n;
-+    return state_p;
++    state = setProximityParam(pp) & state;
++    return state;
 +  }
 +
 +  bool VertexProx::write(std::ostream& os) const
 +  {
 +    bool state_p = internal::writeVector(os, estimate().toVector());
-+    os << _num_prox << " ";
-+    for (int i = 0; i < _num_prox && i < prox_maxN; i++) {
-+        bool state_r = internal::writeVector(os, *_proximityParam[i]);
++    os << _proximityParam.size() << " ";
++    for (const Vector2& r : _proximityParam) {
++        bool state_r = internal::writeVector(os, r);
 +        if (state_r == false) return false;
 +    }
 +    return state_p;
@@ -3400,7 +3190,7 @@ index 00000000..8d9820f2
 +    //drawUserData(that->userData(), params_);
 +    glPopMatrix();
 +    glColor3f(LANDMARK_VERTEX_COLOR);
-+    for (int i = 0; i < that->num_prox() && i < prox_maxN; i++) {
++    for (int i = 0; i < that->numProx(); i++) {
 +        if ((float)_point_size->value() != 0) {
 +            //glColor3f(POSE_VERTEX_COLOR);
 +            glPushMatrix();
@@ -3440,10 +3230,10 @@ index 00000000..8d9820f2
 +} // end namespace
 diff --git a/g2o/types/slam2d/vertex_prox.h b/g2o/types/slam2d/vertex_prox.h
 new file mode 100644
-index 00000000..3a63a821
+index 00000000..37c7600c
 --- /dev/null
 +++ b/g2o/types/slam2d/vertex_prox.h
-@@ -0,0 +1,100 @@
+@@ -0,0 +1,91 @@
 +// This library was made by Kotaro Wada. (211t373t[at]stu.kobe-u.ac.jp)
 +
 +#ifndef G2O_VERTEX_SE2_PROXIMITY_H
@@ -3457,17 +3247,7 @@ index 00000000..3a63a821
 +#include "se2.h"
 +#include "g2o_types_slam2d_api.h"
 +
-+#ifndef prox_maxN
-+#define prox_maxN 10
-+#endif
-+
 +namespace g2o {
-+
-+  /**
-+   * \brief 2D pose Vertex, (x,y,theta)
-+   */
-+  class ParameterPointXYProximity;
-+  class CachePointXYProximity;
 +
 +  class G2O_TYPES_SLAM2D_API VertexProx : public BaseVertex<3, SE2>
 +  {
@@ -3504,20 +3284,21 @@ index 00000000..3a63a821
 +      
 +      virtual int minimalEstimateDimension() const { return 3; }
 +
++      bool setProximityParam(const std::vector<Vector2>& pp);
++
 +      virtual bool read(std::istream& is);
 +      virtual bool write(std::ostream& os) const;
 +
++      virtual inline int numProx() const { return _proximityParam.size(); };
 +      virtual inline Vector2 proximity(int i) const {
-+          if(0 <= i && i < _num_prox)
-+            return *_proximityParam[i];
-+          std::cerr << "out of range" << std::endl;
++          if(0 <= i && i < numProx())
++            return _proximityParam[i];
++          std::cerr << typeid(*this).name() << " : Out of Proximity Index Range!" << std::endl;
 +          return Vector2();
 +      };
-+      virtual inline int num_prox() const { return _num_prox; };
 +
 +  private:
-+      std::array<Vector2*, prox_maxN> _proximityParam;
-+      int _num_prox;
++      std::vector<Vector2> _proximityParam;
 +  };
 +
 +  class G2O_TYPES_SLAM2D_API VertexProxWriteGnuplotAction: public WriteGnuplotAction {
@@ -3664,139 +3445,6 @@ index 00000000..bda3e668
 +        virtual bool write(std::ostream& os) const;
 +
 +    private:
-+    };
-+
-+} // end namespace
-+
-+#endif
-diff --git a/g2o/types/slam2d/vertex_switch_pp.cpp b/g2o/types/slam2d/vertex_switch_pp.cpp
-new file mode 100644
-index 00000000..def5157e
---- /dev/null
-+++ b/g2o/types/slam2d/vertex_switch_pp.cpp
-@@ -0,0 +1,54 @@
-+// This class was made by Kotaro Wada. (211t373t[at]stu.kobe-u.ac.jp)
-+
-+#include <string>
-+#include "vertex_switch_pp.h"
-+
-+#ifdef G2O_HAVE_OPENGL
-+#include "g2o/stuff/opengl_wrapper.h"
-+#include "g2o/stuff/opengl_primitives.h"
-+#endif
-+
-+namespace g2o {
-+
-+    VertexSwitchProxPair::VertexSwitchProxPair() :
-+        BaseVertex<prox_maxN, std::array<number_t, prox_maxN>>(), _num_prox_pairs(0) { 
-+        setToOriginImpl();
-+    }
-+  void VertexSwitchProxPair::oplusImpl(const number_t* update) {
-+      for (int i = 0; i < _num_prox_pairs; i++) {
-+          _estimate[i] += update[i];
-+          //_estimate[i] += update[i];
-+          //if(_estimate[i] + update[i] < 0.5)
-+          //    _estimate[i] = 0.;
-+          //else
-+          //    _estimate[i] = 1.;
-+          //_estimate[i] = std::max(std::min(_estimate[i], cst(30.)), cst(-4.5));
-+          //_estimate[i] = std::min(std::max(_estimate[i] + update[i], 1.), 1.e-2);
-+          //_estimate[i] = (_estimate[i] + update[i]) / (1. + _estimate[i] + update[i]);
-+      }
-+    for (int i = _num_prox_pairs; i < prox_maxN; i++)
-+        _estimate[i] = 1.;
-+  }
-+
-+  bool VertexSwitchProxPair::read(std::istream& is) {
-+    if (is.bad()) return false;
-+    std::array<number_t, prox_maxN> p;
-+    int n;
-+    is >> n;
-+    setToOriginImpl();
-+    _num_prox_pairs = std::min(n, prox_maxN);
-+    for (int i = 0; i < _num_prox_pairs; i++) {
-+        if (is.bad()) return true;
-+        is >> _estimate[i];
-+    }
-+    return true;
-+  }
-+
-+  bool VertexSwitchProxPair::write(std::ostream& os) const {
-+    os << _num_prox_pairs << " ";
-+    for (int i = 0; i < _num_prox_pairs && i < prox_maxN; i++)
-+      os << _estimate[i] << " " ;
-+    return true;
-+  }
-+
-+} // end namespace
-diff --git a/g2o/types/slam2d/vertex_switch_pp.h b/g2o/types/slam2d/vertex_switch_pp.h
-new file mode 100644
-index 00000000..b4bec56c
---- /dev/null
-+++ b/g2o/types/slam2d/vertex_switch_pp.h
-@@ -0,0 +1,67 @@
-+// This class was made by Kotaro Wada. (211t373t[at]stu.kobe-u.ac.jp)
-+
-+#ifndef G2O_SWITCHING_PROX_PAIR_H
-+#define G2O_SWITCHING_PROX_PAIR_H
-+
-+#include "g2o/core/base_ternary_edge.h"
-+#include "parameter_switch_weight.h"
-+
-+#include "g2o/config.h"
-+#include "g2o/core/base_vertex.h"
-+#include "g2o/core/hyper_graph_action.h"
-+#include "g2o_types_slam2d_api.h"
-+
-+#ifndef prox_maxN
-+#define prox_maxN 10
-+#endif
-+
-+namespace g2o {
-+
-+    class G2O_TYPES_SLAM2D_API VertexSwitchProxPair : public BaseVertex<prox_maxN, std::array<number_t, prox_maxN>>
-+    {
-+    public:
-+        EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-+            VertexSwitchProxPair();
-+
-+        virtual void setToOriginImpl() {
-+            //for (int i = 0; i < prox_maxN; i++)
-+            //    _estimate[i] = 1.;
-+            _estimate.fill(1.);
-+        }
-+
-+        virtual void oplusImpl(const number_t* update);
-+
-+        virtual bool setEstimateDataImpl(const number_t* est) {
-+            for (int i = 0; i < prox_maxN; i++)
-+                _estimate[i] = est[i];
-+            return true;
-+        }
-+
-+        virtual bool getEstimateData(number_t* est) const {
-+            for (int i = 0; i < prox_maxN; i++)
-+                est[i] = _estimate[i];
-+            return true;
-+        }
-+
-+        virtual int estimateDimension() const { return prox_maxN; }
-+
-+        virtual bool setMinimalEstimateDataImpl(const number_t* est) {
-+            return setEstimateData(est);
-+        }
-+
-+        virtual bool getMinimalEstimateData(number_t* est) const {
-+            return getEstimateData(est);
-+        }
-+
-+        virtual int minimalEstimateDimension() const { return prox_maxN; }
-+
-+        virtual bool read(std::istream& is);
-+        virtual bool write(std::ostream& os) const;
-+
-+    private:
-+        int _num_prox_pairs;
 +    };
 +
 +} // end namespace
