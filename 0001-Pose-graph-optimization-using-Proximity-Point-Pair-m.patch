@@ -1,4 +1,4 @@
-From 2bae5ff23635460d52382bddcdedba5572d55a2f Mon Sep 17 00:00:00 2001
+From b2449d5fb7c4add53464c3dc2b458e6094745fca Mon Sep 17 00:00:00 2001
 From: Wada Kotaro <Wada_Kotaro@stu.kobe-u.ac.jp>
 Date: Sun, 12 Mar 2023 01:53:18 +0900
 Subject: [PATCH] Pose-graph optimization using Proximity-Point-Pair matching
@@ -9,7 +9,7 @@ Subject: [PATCH] Pose-graph optimization using Proximity-Point-Pair matching
  g2o/solvers/eigen/CMakeLists.txt             |   2 +-
  g2o/stuff/opengl_primitives.cpp              |   8 +
  g2o/stuff/opengl_primitives.h                |   5 +
- g2o/types/slam2d/CMakeLists.txt              |  36 +--
+ g2o/types/slam2d/CMakeLists.txt              |  37 +--
  g2o/types/slam2d/cache_prox.cpp              |  39 +++
  g2o/types/slam2d/cache_prox.h                |  42 ++++
  g2o/types/slam2d/edge_prox.cpp               | 248 +++++++++++++++++++
@@ -22,7 +22,7 @@ Subject: [PATCH] Pose-graph optimization using Proximity-Point-Pair matching
  g2o/types/slam2d/edge_switch_se2.h           | 136 ++++++++++
  g2o/types/slam2d/parameter_switch_weight.cpp |  53 ++++
  g2o/types/slam2d/parameter_switch_weight.h   |  59 +++++
- g2o/types/slam2d/types_slam2d.cpp            |  16 ++
+ g2o/types/slam2d/types_slam2d.cpp            |  15 ++
  g2o/types/slam2d/types_slam2d.h              |   7 +
  g2o/types/slam2d/vertex_prox.cpp             | 163 ++++++++++++
  g2o/types/slam2d/vertex_prox.h               |  91 +++++++
@@ -158,11 +158,12 @@ index f3aade98..00b123ea 100644
  
  #define POSE_VERTEX_COLOR 0.5f, 0.5f, 0.8f
 diff --git a/g2o/types/slam2d/CMakeLists.txt b/g2o/types/slam2d/CMakeLists.txt
-index 067cf139..5b4a9396 100644
+index 067cf139..2b2b7ce2 100644
 --- a/g2o/types/slam2d/CMakeLists.txt
 +++ b/g2o/types/slam2d/CMakeLists.txt
-@@ -1,19 +1,27 @@
+@@ -1,19 +1,28 @@
  add_library(types_slam2d ${G2O_LIB_TYPE}
++  types_slam2d.cpp			    types_slam2d.h
    se2.h
 -  edge_se2_pointxy_bearing.h  edge_se2_prior.h
 -  edge_se2.cpp                  edge_se2_pointxy_calib.cpp  types_slam2d.cpp
@@ -1540,7 +1541,7 @@ index 00000000..08842e53
 +
 +#endif
 diff --git a/g2o/types/slam2d/types_slam2d.cpp b/g2o/types/slam2d/types_slam2d.cpp
-index 532f5bd4..0bd8b42d 100644
+index 532f5bd4..24db6dd5 100644
 --- a/g2o/types/slam2d/types_slam2d.cpp
 +++ b/g2o/types/slam2d/types_slam2d.cpp
 @@ -37,8 +37,12 @@ G2O_REGISTER_TYPE_GROUP(slam2d);
@@ -1573,7 +1574,7 @@ index 532f5bd4..0bd8b42d 100644
  G2O_REGISTER_ACTION(EdgeSE2WriteGnuplotAction);
  G2O_REGISTER_ACTION(EdgeSE2PointXYWriteGnuplotAction);
  G2O_REGISTER_ACTION(EdgeSE2PointXYBearingWriteGnuplotAction);
-@@ -61,9 +72,14 @@ G2O_REGISTER_ACTION(EdgeSE2PointXYBearingWriteGnuplotAction);
+@@ -61,9 +72,13 @@ G2O_REGISTER_ACTION(EdgeSE2PointXYBearingWriteGnuplotAction);
  #ifdef G2O_HAVE_OPENGL
  G2O_REGISTER_ACTION(VertexSE2DrawAction);
  G2O_REGISTER_ACTION(VertexPointXYDrawAction);
@@ -1584,7 +1585,6 @@ index 532f5bd4..0bd8b42d 100644
 +G2O_REGISTER_ACTION(EdgeProxDrawAction);                          //added by wada
 +G2O_REGISTER_ACTION(EdgeMEstProxDrawAction);                      //added by wada
 +G2O_REGISTER_ACTION(EdgeSwitchProxDrawAction);                    //added by wada
-+G2O_REGISTER_ACTION(EdgeEMProxDrawAction);                        //added by wada
  
  #endif
  }  // namespace g2o
