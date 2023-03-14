@@ -1,10 +1,12 @@
-From b2449d5fb7c4add53464c3dc2b458e6094745fca Mon Sep 17 00:00:00 2001
+From 434ea3d49dec00e6892327f9bf7c9b6d8ba9a78d Mon Sep 17 00:00:00 2001
 From: Wada Kotaro <Wada_Kotaro@stu.kobe-u.ac.jp>
 Date: Sun, 12 Mar 2023 01:53:18 +0900
 Subject: [PATCH] Pose-graph optimization using Proximity-Point-Pair matching
 
 ---
  g2o/EXTERNAL/freeglut/CMakeLists.txt         |   2 +-
+ g2o/core/CMakeLists.txt                      |  67 ++---
+ g2o/core/base_ternary_edge.h                 |  31 +++
  g2o/core/sparse_optimizer.cpp                |  16 +-
  g2o/solvers/eigen/CMakeLists.txt             |   2 +-
  g2o/stuff/opengl_primitives.cpp              |   8 +
@@ -29,7 +31,8 @@ Subject: [PATCH] Pose-graph optimization using Proximity-Point-Pair matching
  g2o/types/slam2d/vertex_se2.h                |   9 +-
  g2o/types/slam2d/vertex_switch.cpp           |  33 +++
  g2o/types/slam2d/vertex_switch.h             |  60 +++++
- 25 files changed, 1660 insertions(+), 39 deletions(-)
+ 27 files changed, 1726 insertions(+), 71 deletions(-)
+ create mode 100644 g2o/core/base_ternary_edge.h
  create mode 100644 g2o/types/slam2d/cache_prox.cpp
  create mode 100644 g2o/types/slam2d/cache_prox.h
  create mode 100644 g2o/types/slam2d/edge_prox.cpp
@@ -58,6 +61,123 @@ index 75c7a9d9..f831bf76 100644
  )
  
  set_target_properties(freeglut_minimal PROPERTIES OUTPUT_NAME ${LIB_PREFIX}ext_freeglut_minimal)
+diff --git a/g2o/core/CMakeLists.txt b/g2o/core/CMakeLists.txt
+index 4ac05b18..adabf3a3 100644
+--- a/g2o/core/CMakeLists.txt
++++ b/g2o/core/CMakeLists.txt
+@@ -3,40 +3,43 @@ dynamic_aligned_buffer.hpp
+ ownership.h
+ base_edge.h
+ base_multi_edge.h
+-base_fixed_sized_edge.h        hyper_graph_action.cpp
+-base_fixed_sized_edge.hpp      hyper_graph_action.h
+-base_variable_sized_edge.h     hyper_graph.cpp
+-base_variable_sized_edge.hpp   hyper_graph.h
+-base_unary_edge.h           linear_solver.h
+-base_binary_edge.h          marginal_covariance_cholesky.cpp
+-base_vertex.h               marginal_covariance_cholesky.h
+-base_vertex.hpp             matrix_structure.cpp
+-batch_stats.cpp             matrix_structure.h
+-batch_stats.h               openmp_mutex.h
+-block_solver.h              block_solver.hpp
+-parameter.cpp               parameter.h
+-cache.cpp                   cache.h
+-optimizable_graph.cpp       optimizable_graph.h
+-solver.cpp                  solver.h
+-creators.h                  optimization_algorithm_factory.cpp
+-estimate_propagator.cpp     optimization_algorithm_factory.h
+-estimate_propagator.h
+-factory.cpp                 optimization_algorithm_property.h
+-factory.h                   sparse_block_matrix.h
+-sparse_optimizer.cpp  sparse_block_matrix.hpp
+-sparse_optimizer.h
+-hyper_dijkstra.cpp hyper_dijkstra.h
+-parameter_container.cpp     parameter_container.h
+-optimization_algorithm.cpp optimization_algorithm.h
++base_fixed_sized_edge.hpp    base_fixed_sized_edge.h
++hyper_graph_action.cpp       hyper_graph_action.h
++base_variable_sized_edge.hpp base_variable_sized_edge.h
++hyper_graph.cpp              hyper_graph.h
++base_unary_edge.h
++base_binary_edge.h
++base_ternary_edge.h
++linear_solver.h
++marginal_covariance_cholesky.cpp marginal_covariance_cholesky.h
++base_vertex.hpp                  base_vertex.h
++matrix_structure.cpp             matrix_structure.h
++batch_stats.cpp                  batch_stats.h
++openmp_mutex.h
++block_solver.hpp      block_solver.h
++parameter.cpp         parameter.h
++cache.cpp             cache.h
++optimizable_graph.cpp optimizable_graph.h
++solver.cpp            solver.h
++creators.h
++optimization_algorithm_factory.cpp optimization_algorithm_factory.h
++estimate_propagator.cpp            estimate_propagator.h
++factory.cpp                        factory.h
++optimization_algorithm_property.h
++sparse_block_matrix.hpp                 sparse_block_matrix.h
++sparse_optimizer.cpp                    sparse_optimizer.h
++hyper_dijkstra.cpp                      hyper_dijkstra.h
++parameter_container.cpp                 parameter_container.h
++optimization_algorithm.cpp              optimization_algorithm.h
+ optimization_algorithm_with_hessian.cpp optimization_algorithm_with_hessian.h
+ optimization_algorithm_gauss_newton.cpp optimization_algorithm_gauss_newton.h
+-optimization_algorithm_levenberg.cpp optimization_algorithm_levenberg.h
+-optimization_algorithm_dogleg.cpp optimization_algorithm_dogleg.h
+-sparse_optimizer_terminate_action.cpp sparse_optimizer_terminate_action.h
+-jacobian_workspace.cpp jacobian_workspace.h
+-robust_kernel.cpp robust_kernel.h
+-robust_kernel_impl.cpp robust_kernel_impl.h
+-robust_kernel_factory.cpp robust_kernel_factory.h
++optimization_algorithm_levenberg.cpp    optimization_algorithm_levenberg.h
++optimization_algorithm_dogleg.cpp       optimization_algorithm_dogleg.h
++sparse_optimizer_terminate_action.cpp   sparse_optimizer_terminate_action.h
++jacobian_workspace.cpp                  jacobian_workspace.h
++robust_kernel.cpp                       robust_kernel.h
++robust_kernel_impl.cpp                  robust_kernel_impl.h
++robust_kernel_factory.cpp               robust_kernel_factory.h
+ io_helper.h
+ g2o_core_api.h
+ )
+diff --git a/g2o/core/base_ternary_edge.h b/g2o/core/base_ternary_edge.h
+new file mode 100644
+index 00000000..eb7b613f
+--- /dev/null
++++ b/g2o/core/base_ternary_edge.h
+@@ -0,0 +1,31 @@
++// This class was made by Kotaro Wada. (211t373t[at]stu.kobe-u.ac.jp)
++
++#ifndef G2O_BASE_TERNARY_EDGE_H
++#define G2O_BASE_TERNARY_EDGE_H
++
++#include "base_fixed_sized_edge.h"
++
++namespace g2o {
++
++// This could be a simple using statement, but in multiple places
++// _jacobianOplusXi, _jacobianOplusXj and _jacobianOplusXk are used.
++template <int D, typename E, typename VertexXi, typename VertexXj, typename VertexXk>
++class BaseTernaryEdge : public BaseFixedSizedEdge<D, E, VertexXi, VertexXj, VertexXk> {
++ public:
++  using VertexXiType = VertexXi;
++  using VertexXjType = VertexXj;
++  using VertexXkType = VertexXk;
++  BaseTernaryEdge() : BaseFixedSizedEdge<D, E, VertexXi, VertexXj, VertexXk>(){};
++
++ protected:
++  typename BaseFixedSizedEdge<D, E, VertexXi, VertexXj, VertexXk>::template JacobianType<
++      D, VertexXi::Dimension>& _jacobianOplusXi = std::get<0>(this->_jacobianOplus);
++  typename BaseFixedSizedEdge<D, E, VertexXi, VertexXj, VertexXk>::template JacobianType<
++      D, VertexXj::Dimension>& _jacobianOplusXj = std::get<1>(this->_jacobianOplus);
++  typename BaseFixedSizedEdge<D, E, VertexXi, VertexXj, VertexXk>::template JacobianType<
++      D, VertexXk::Dimension>& _jacobianOplusXk = std::get<2>(this->_jacobianOplus);
++};
++
++}  // namespace g2o
++
++#endif
 diff --git a/g2o/core/sparse_optimizer.cpp b/g2o/core/sparse_optimizer.cpp
 index 901de809..91b226c6 100644
 --- a/g2o/core/sparse_optimizer.cpp
